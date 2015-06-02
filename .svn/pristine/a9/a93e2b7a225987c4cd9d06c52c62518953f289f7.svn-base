@@ -1,0 +1,105 @@
+//
+//  AppConfigure.h
+//  ZheKou
+//
+//  Created by 陈煜 on 13-4-8.
+//  Copyright (c) 2013年 runcom. All rights reserved.
+//
+
+#import <Foundation/Foundation.h>
+#import "MyMacros.h"
+
+//版本
+#define Current_Configure_Ver       1
+#define Key_Configure_Ver           @"ConfigureVer"
+
+#define USERID @"USERID"
+#define USERNAME @"USERNAME"
+#define LOGIN_NAME @"loginname"
+#define PASSWORD @"pwd"
+#define VER_CODE @"VER_CODE"
+#define AREA_CODE @"AREA_CODE"
+#define MAJOR_CODE @"MAJOR_CODE"
+#define TEMPLATE_CODE @"TEMPLATE_CODE"
+#define EXAM_BASIS_INDEX_CODE @"EXAM_BASIS_INDEX_CODE"
+#define MAJOR_LIST @"MAJOR_LIST"
+#define AREA_LIST @"AREA_LIST"
+#define EXAM_BASIS_INDEX_LIST @"EXAM_BA SIS_INDEX_LIST"
+#define DISTANCE @"DISTANCE"
+#define TEMPLATE_VER @"TEMPLATE_VER"
+#define UPDATE_TIMESTAMP @"UPDATE_TIMESTAMP"
+#define Strategy @"Strategy"
+#define WORK_DATE @"WORK_DATE"
+#define GPS_DATE @"GPS_DATE"
+#define LATITUDE @"LATITUDE"
+#define LONGITUDE @"LONGITUDE"
+#define MINE_IMAGE_ID @"mineimageid"
+#define PHOTO_NUMBER @"photo_number"
+// 最近一次选择的专业和大项ID
+#define CHOOSE_MAJOR_ID [NSString stringWithFormat:@"%@_%@", @"CHOOSE_MAJOR_ID", [AppConfigure objectForKey:USERID]]
+#define CHOOSE_DEPT_PROJECT_ID [NSString stringWithFormat:@"%@_%@", @"CHOOSE_DEPT_PROJECT_ID", [AppConfigure objectForKey:USERID]]
+#define AREA_VER @"AREA_VER"
+#define MAJOR_VER @"MAJOR_VER"
+// 专业名称字段
+#define BO_DICT_NAME @"BO_DICT_NAME"
+// 大项名称字段
+#define KEYNAME @"keyname"
+// 专业ID
+#define BO_DICT_VAL @"BO_DICT_VAL"
+// 大项ID
+#define KEYID @"keyid"
+// 最近一次选择的专业和大项的名称
+#define CHOOSE_MAJOR_NAME [NSString stringWithFormat:@"%@_%@", @"CHOOSE_MAJOR_NAME", [AppConfigure objectForKey:USERID]]
+#define CHOOSE_DEPT_PROJECT_NAME [NSString stringWithFormat:@"%@_%@", @"CHOOSE_DEPT_PROJECT_NAME", [AppConfigure objectForKey:USERID]]
+// 展示列数, 定义常量, 默认20
+#define DEFAULT_END_NUM 20
+// 上拉增量刷新, 一次默认增加50条数据
+#define DEFAULT_INCREMENT_NUM 50
+// 工程字段
+#define PROJECT_NAME @"project_name"
+#define PROJECT_NUMBER @"project_number"
+#define NEED_AMOUNT @"need_amount"
+#define UPLOAD_AMOUNT @"upload_amount"
+#define PROJECT_DISTANCE @"PROJECT_DISTANCE"
+#define ENTER_DATE @"enter_date"
+#define UPDATE_DATE @"update_date"
+// 是否需要再一次请求
+#define NEED_NEXT @"neednext"
+#define NEED_NEXT_FALSE @"false"
+#define NEED_NEXT_TRUE @"true"
+#define DEPT_LIST @"deptList"
+#define EXCLUDE_TEMPLATE_LIST @"excludeTemplateList"
+#define SELECTION_LIST @"selectionList"
+#define SINGLE_LIST @"singleList"
+// 定义时间格式字符串
+#define DATE_LONG @"yyyy-MM-dd HH:mm:ss"
+#define DATE_SHORT @"yyyy-MM-dd"
+
+// 拍照点为必拍
+#define POINT_NEED_VALIDATE @"1"
+#define PHOTO_DATE @"photo_date"
+//jabberd id
+#define JID @"jabberdId"
+//应用图标上右上角显示的红色数字
+#define APP_ICON_BADGE_NUM @"applicationIconBadgeNumber"
+
+
+
+@interface AppConfigure : NSObject
+
++ (id)objectForKey:(NSString *)key;
++ (NSString *)valueForKey:(NSString *)key;
++ (NSInteger)integerForKey:(NSString *)defaultName;
++ (BOOL)boolForKey:(NSString *)defaultName;
++ (void)setObject:(id)value ForKey:(NSString *)key;
++ (void)setValue:(id)value forKey:(NSString *)key;
++ (void)setInteger:(NSInteger)value forKey:(NSString *)defaultName;
++ (void)setBool:(BOOL)value forKey:(NSString *)defaultName;
+
+//是否登录
++ (BOOL)isUserLogined;
+
+//用户登出账号
++ (void) loginOut;
+
+@end

@@ -1,0 +1,191 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+	content="width=device-width, initial-scale=1, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<title>整改_bootstrap</title>
+<link rel="stylesheet" href="css/bootstrap.min.css">
+<link rel="stylesheet" href="css/doc.min.css">
+<link rel="stylesheet" href="css/datepicker.css" />
+<!-- jQuery文件。务必在bootstrap.min.js 之前引入 -->
+<script src="js/jquery.min.js">
+	
+</script>
+
+<!-- 最新的 Bootstrap 核心 JavaScript 文件 -->
+<script src="js/bootstrap.min.js"></script>
+<script src="js/bootstrap-datepicker.min.js"></script>
+<script src="js/bootstrap-datepicker.zh-CN.min.js" charset="UTF-8"></script>
+<script src="testdata.js"></script>
+<script src="rectify_bootstrap.js"></script>
+</head>
+<body>
+	<div class="container bs-docs-container">
+		<div class="bs-example">
+			<form id="basicData">
+				<!--<div class="form-group">
+						<input type="checkbox" name="checkbox-v-2a" id="checkbox-v-2a">
+						<label for="checkbox-v-2a">
+							可否整改
+						</label>
+					</div>
+					<div class="form-group">
+						<input type="checkbox" name="checkbox-v-2b" id="checkbox-v-2b">
+						<label for="checkbox-v-2b">
+							是否直接整改完成:
+						</label>
+					</div>
+					-->
+				<div class="form-group">
+					<label for="MEND_TIME_LIMIT"> 整改时限： </label> <input
+						id="MEND_TIME_LIMIT" name="MEND_TIME_LIMIT" type="text"
+						readonly="readonly" class="form-control" value="2015-05-14" />
+				</div>
+				<div class="form-group">
+					<label for="EXAM_BASIS"> 考核依据： </label> <select name="EXAM_BASIS"
+						id="EXAM_BASIS" class="form-control">
+					</select>
+				</div>
+				<div class="form-group">
+					<label for="REMARK"> 备注 </label>
+					<textarea class="form-control" rows="2" id="REMARK" name="REMARK"
+						placeholder="备注">备注备注</textarea>
+				</div>
+
+				<div class="panel panel-default">
+					<div class="panel-heading ">
+						<div class="row">
+							<div class="col-xs-9">
+								<h4>问题记录</h4>
+							</div>
+							<div class="col-xs-3 text-center">
+								<button type="button" id="viewpic"
+									class="btn  btn-primary">照片</button>
+							</div>
+						</div>
+					</div>
+					<div class="list-group" id="point_list"></div>
+				</div>
+
+				<div class="panel panel-default">
+					<div class="panel-heading ">
+						<div class="row">
+							<div class="col-xs-9">
+								<h4>整改责任单位</h4>
+							</div>
+							<div class="col-xs-3 text-center">
+								<button type="button" class="btn  btn-primary"
+									id="newrecord">添加</button>
+							</div>
+						</div>
+					</div>
+					<div class="list-group" id="org_list"></div>
+				</div>
+
+				<div class="form-group">
+					<label for="REPLY_CONTENT"> 反馈内容: </label> <input type="text"
+						name="REPLY_CONTENT" id="REPLY_CONTENT" placeholder="反馈内容"
+						class="form-control" value="">
+				</div>
+				<div class="form-group">
+					<label for="REJECT_ONE"> 第一次退回原因: </label> <input type="text"
+						name="REJECT_ONE" id="REJECT_ONE" value="" class="form-control"
+						placeholder="第一次退回原因">
+				</div>
+				<div class="form-group">
+					<label for="REJECT_TWO"> 第二次退回原因: </label> <input type="text"
+						name="REJECT_TWO" id="REJECT_TWO" value="" class="form-control"
+						placeholder="第二次退回原因">
+				</div>
+				<div class="form-group">
+					<label for="REJECT_THREE"> 第三次退回原因: </label> <input type="text"
+						name="REJECT_THREE" id="REJECT_THREE" value=""
+						class="form-control" placeholder="第三次退回原因" />
+				</div>
+
+				<div class="form-group text-center" id="footone">
+					<button type="button" id="submitbtn" class="btn btn-lg btn-success">确认提交
+					</button>
+				</div>
+				<div class="form-group">
+					<div class="row" id="foottwo">
+						<div class="col-xs-6 text-center">
+							<button type="button" id="rejectbtn"
+								class="btn btn-warning btn-lg ">退回</button>
+						</div>
+						<div class="col-xs-6 text-center">
+							<button type="button" id="closebtn"
+								class="btn btn-success btn-lg ">关闭</button>
+						</div>
+
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+	<div class="modal" id="editModal" tabindex="-1" role="dialog"
+		aria-labelledby="exampleModalLabel" aria-hidden="true">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal"
+						aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+					<h4 class="modal-title" id="exampleModalLabel">编辑扣分记录</h4>
+				</div>
+				<div class="modal-body">
+					<form class="form-horizontal">
+						<div class="form-group">
+							<label for="org" class="col-xs-3 control-label"> 单位 </label>
+							<div class="col-xs-9">
+								<select name="ORG_ID" id="ORG_ID" class="form-control">
+								</select>
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="recipient-name" class="col-xs-3 control-label">
+								扣分 </label>
+							<div class="col-xs-9">
+								<input type="text" class="form-control" id="ORG_CHECK">
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="message-text" class="col-xs-3 control-label">
+								扣款 </label>
+							<div class="col-xs-9">
+								<input type="text" class="form-control" id="ORG_CHECK_PAYMENT">
+							</div>
+						</div>
+						<div class="form-group">
+							<label for="IS_ORG_MOSTLY_MEND" class="col-xs-9 control-label">
+								是否整改主体 </label>
+							<div class="col-xs-3">
+								<input type="checkbox" name="IS_ORG_MOSTLY_MEND"
+									id="IS_ORG_MOSTLY_MEND">
+							</div>
+
+						</div>
+					</form>
+
+				</div>
+
+				<div class="modal-footer">
+					<button type="button" id="delrecordbtn" class="btn btn-warning">
+						删除<span id="count"></span>
+					</button>
+					<button type="button" id="saverecordbtn" class="btn btn-primary">保存</button>
+					<button type="button" id="" class="btn btn-default"
+						data-dismiss="modal">取消</button>
+					<h6 class="alert alert-warning hidden" id="delalert" role="alert">5秒内再次点击"删除"将执行删除</h6>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
+
+
+
+

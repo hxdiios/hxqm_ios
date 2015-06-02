@@ -1,0 +1,430 @@
+//
+//  ProblemManager.m
+//  hxqm_mobile
+//
+//  Created by HelloWorld on 1/16/15.
+//  Copyright (c) 2015 huaxin. All rights reserved.
+//
+
+#import "ProblemManager.h"
+#import "LogUtils.h"
+#import "MyMacros.h"
+#import "BaseFunction.h"
+
+#define TAG @"ProblemManager"
+
+@implementation ProblemManager
+
+- (NSString *) test {
+    return @"ProblemManager";
+}
+
+/**
+ * 下载整改记录
+ *
+ * @param list
+ * @author hubo
+ */
+- (void)saveProblemList:(NSArray *)list userid:(NSString *)userid {
+    [LogUtils Log:TAG content:@"整改插入开始"];
+    
+    for (NSDictionary *problemDic in list) {
+        [self saveProblem:problemDic userid:userid];
+        [self saveProblemOrg:problemDic userid:userid];
+        [self saveProblemReply:problemDic userid:userid];
+    }
+    
+    [LogUtils Log:TAG content:@"整改插入结束"];
+}
+
+/**
+ * 保存整改逾期
+ *
+ * @param list
+ * @author yanghua
+ */
+- (void)saveProblemDelayList:(NSArray *)list userid:(NSString *)userid {
+    [LogUtils Log:TAG content:@"整改逾期插入开始"];
+    
+    for (NSDictionary *problemDelyDic in list) {
+        [self saveProblemReply:problemDelyDic userid:userid];
+    }
+    
+    [LogUtils Log:TAG content:@"整改逾期插入开始"];
+}
+
+/**
+ * 更新整改记录
+ *
+ * @param problemRecord
+ * @return
+ * @author hubo
+ * @editor yanghua
+ */
+- (BOOL)saveProblem:(NSDictionary *)jso userid:(NSString *)userid {
+    NSArray *sqlArray = @[@"REPLACE INTO BO_PROBLEM(BO_PROBLEM_ID,BO_SINGLE_PROJECT_ID,IS_MEND_FINISH,MEND_TIME_LIMIT,EXAM_BASIS,EXAM_BASIS_TEXT,REMARK,",
+                          @"IS_MEND,PROBLEM_TYPE,PROBLEM_ITEM,BO_CHECK_PROJECT_ID,IS_DRAFT,USERID,CREATE_USER_ID,CREATE_TIME,TYPES,PAPER_CHECK_NUM,PAPER_PRM_NUM)",
+                          @"VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString *apart in sqlArray) {
+        [sql appendString:apart];
+    }
+    
+    NSArray *params = @[[jso objectForKey:@"BO_PROBLEM_ID"],
+                        [jso objectForKey:@"BO_SINGLE_PROJECT_ID"],
+                        [jso objectForKey:@"IS_MEND_FINISH"],
+                        [jso objectForKey:@"MEND_TIME_LIMIT"],
+                        [jso objectForKey:@"EXAM_BASIS"],
+                        [jso objectForKey:@"EXAM_BASIS_TEXT"],
+                        [jso objectForKey:@"REMARK"],
+                        [jso objectForKey:@"IS_MEND"],
+                        [jso objectForKey:@"PROBLEM_TYPE"],
+                        [jso objectForKey:@"PROBLEM_ITEM"],
+                        [jso objectForKey:@"BO_CHECK_PROJECT_ID"],
+                        ([jso objectForKey:@"IS_DRAFT"] == nil) ? @"" : [jso objectForKey:@"IS_DRAFT"],
+                        userid,
+                        [jso objectForKey:@"CREATE_USER_ID"],
+                        [jso objectForKey:@"PROBLEM_CREATE_TIME"],
+                        [jso objectForKey:@"TYPES"],
+                        [jso objectForKey:@"PAPER_CHECK_NUM"],
+                        [jso objectForKey:@"PAPER_PRM_NUM"]];
+    
+    return [self executeUpdate:sql params:params];
+}
+
+/**
+ * 保存问题责任方扣分
+ *
+ * @param problemRecord
+ * @return
+ * @author hubo
+ * @editor yanghua
+ */
+- (BOOL)saveProblemOrg:(NSDictionary *)jso userid:(NSString *)userid {
+    NSString *sql = @"REPLACE INTO BO_PROBLEM_ORG(BO_PROBLEM_ORG_ID,BO_PROBLEM_ID,ORG_TYPE,ORG_ID,ORG_NAME,ORG_CHECK,ORG_CHECK_PAYMENT,IS_ORG_MOSTLY_MEND,USERID) VALUES(?,?,?,?,?,?,?,?,?)";
+    
+    NSArray *params = @[[jso objectForKey:@"BO_PROBLEM_ORG_ID"],
+                        [jso objectForKey:@"BO_PROBLEM_ID"],
+                        [jso objectForKey:@"ORG_TYPE"],
+                        [jso objectForKey:@"ORG_ID"],
+                        [jso objectForKey:@"ORG_NAME"],
+                        [jso objectForKey:@"ORG_CHECK"],
+                        [jso objectForKey:@"ORG_CHECK_PAYMENT"],
+                        [jso objectForKey:@"IS_ORG_MOSTLY_MEND"],
+                        userid];
+    
+    return [self executeUpdate:sql params:params];
+}
+
+/**
+ * 保存施工回复
+ *
+ * @param problemRecord
+ * @return
+ * @author hubo
+ */
+- (BOOL)saveProblemReply:(NSDictionary *)jso userid:(NSString *)userid {
+    NSArray *sqlArray = @[@"REPLACE INTO BO_PROBLEM_REPLY(BO_PROBLEM_REPLY_ID,BO_PROBLEM_ID,BO_PROBLEM_ORG_ID,CREATE_TIME,UPDATE_TIME,",
+                          @"BO_SINGLE_PROJECT_ID,BO_PROJECT_SECTION_ID,REPLY_CONTENT,STATUS,PROBLEM_STATE,USERID,REJECT_ONE,REJECT_TWO,REJECT_THREE,REJECT_COUNT)",
+                          @" VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString *apart in sqlArray) {
+        [sql appendString:apart];
+    }
+
+    NSArray *params = @[[jso objectForKey:@"BO_PROBLEM_REPLY_ID"],
+                        [jso objectForKey:@"BO_PROBLEM_ID"],
+                        [jso objectForKey:@"BO_PROBLEM_ORG_ID"],
+                        [jso objectForKey:@"REPLY_CREATE_TIME"],
+                        [jso objectForKey:@"REPLY_UPDATE_TIME"],
+                        [jso objectForKey:@"BO_SINGLE_PROJECT_ID"],
+                        [jso objectForKey:@"BO_PROJECT_SECTION_ID"],
+                        [jso objectForKey:@"REPLY_CONTENT"],
+                        [jso objectForKey:@"STATUS"],
+                        [jso objectForKey:@"STATES"],
+                        userid,
+                        [jso objectForKey:@"REJECT_1"],
+                        [jso objectForKey:@"REJECT_2"],
+                        [jso objectForKey:@"REJECT_3"],
+                        [jso objectForKey:@"REJECT_COUNT"],];
+    
+    return [self executeUpdate:sql params:params];
+}
+
+/**
+ * 得到整改问题列表
+ *
+ * @return
+ * @author hubo
+ */
+- (NSMutableArray *)getProblemList:(float)longtitude latitude:(float)latitude {
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    [sql appendString:@"SELECT T.BO_SINGLE_PROJECT_ID, "];
+    [sql appendString:@"       MAX(PROJECT_NUMBER) PROJECT_NUMBER, "];
+    [sql appendString:@"       MAX(PROJECT_NAME) PROJECT_NAME, "];
+    [sql appendString:@"       MAX(LONGITUDE) LONGITUDE, "];
+    [sql appendString:@"       MAX(LATITUDE) LATITUDE, "];
+    [sql appendString:@"       MAX(BO_TEMPLATE_VER_ID) BO_TEMPLATE_VER_ID, "];
+    [sql appendString:@"       MAX(BO_TEMPLATE_ID) BO_TEMPLATE_ID, "];
+    [sql appendString:@"       MAX(BO_DEPT_PROJECT_ID) BO_DEPT_PROJECT_ID, "];
+    [sql appendString:@"       MAX(DEPT_PROJECT_NAME) DEPT_PROJECT_NAME, "];
+    [sql appendString:@"       MAX(ENTER_DATE) ENTER_DATE, "];
+    [sql appendString:@"       MAX(UPDATE_DATE) UPDATE_DATE, "];
+    [sql appendString:@"       MAX(MAJOR_ID) MAJOR_ID, "];
+    [sql appendString:@"       MAX(MAJOR_NAME) MAJOR_NAME, "];
+    [sql appendString:@"       MAX(UPDATE_TIMESTAMP) UPDATE_TIMESTAMP, "];
+    [sql appendString:@"       COUNT(1) UPLOAD_AMOUNT "];
+    [sql appendString:@"  FROM BO_SINGLE_PROJECT T, BO_PROBLEM M "];
+    [sql appendString:@" WHERE T.BO_SINGLE_PROJECT_ID = M.BO_SINGLE_PROJECT_ID "];
+    [sql appendString:@"   AND M.TYPES IN ('1','4')"];
+    [sql appendString:@" GROUP BY T.BO_SINGLE_PROJECT_ID "];
+    
+    NSMutableArray *list = [self getListBySql:sql params:@[]];
+    for (NSMutableDictionary *problemDic in list) {
+        if (longtitude == 0) {
+            [problemDic setObject:@"未知" forKey:@"project_distance"];
+        } else {
+            NSString *site_distance = [BaseFunction calculateDistance:longtitude latitude:latitude longitude2:[problemDic objectForKey:@"longitude"] latitude2:[problemDic objectForKey:@"latitude"]];
+            [problemDic setObject:site_distance forKey:@"project_distance"];
+        }
+        
+        NSString *amount = IsStringEmpty([problemDic objectForKey:@"upload_amount"]) ? @"0/0" : [problemDic objectForKey:@"upload_amount"];
+        [problemDic setObject:[NSString stringWithFormat:@"任务数：%@", amount] forKey:@"upload_amount"];
+    }
+    
+    return list;
+}
+
+/**
+ * 根据照片标识
+ *
+ * @param boProblemId
+ * @return map
+ * @author yanghua
+ */
+- (NSDictionary *)getProblemInfo:(NSString *)boProblemId userid:(NSString *)userid {
+    NSString *sql = @"SELECT P.*,PR.REPLY_CONTENT,PR.STATUS,PR.REJECT_ONE,PR.REJECT_TWO,PR.REJECT_THREE,PR.REJECT_COUNT FROM BO_PROBLEM P LEFT JOIN BO_PROBLEM_REPLY PR ON PR.BO_PROBLEM_ID = P.BO_PROBLEM_ID WHERE P.BO_PROBLEM_ID = ? AND P.USERID = ? AND PR.USERID = ? AND PR.STATUS != '5'";
+    NSArray *params = @[boProblemId, userid, userid];
+    
+    return [self getMapBySql:sql params:params];
+}
+
+/**
+ * 更新待办
+ *
+ * @param massRecord
+ * @author yanghua
+ */
+- (BOOL)updateProblem:(NSDictionary *)jso {
+    NSString *sql = @"UPDATE BO_PROBLEM  SET EXAM_BASIS = ?,MASS_CHECK_TIME = ?,REMARK = ?, MEND_TIME_LIMIT = ?,ORG_CHECK = ?,ORG_CHECK_PAYMENT = ? WHERE BO_PROBLEM_ID = ?";
+    
+    NSArray *params = @[[jso objectForKey:@"EXAM_BASIS"],
+                        [jso objectForKey:@"MASS_CHECK_TIME"],
+                        [jso objectForKey:@"REMARK"],
+                        [jso objectForKey:@"MEND_TIME_LIMIT"],
+                        [jso objectForKey:@"ORG_CHECK"],
+                        [jso objectForKey:@"ORG_CHECK_PAYMENT"],
+                        [jso objectForKey:@"BO_PROBLEM_ID"]];
+    
+    return [self executeSql:sql params:params];
+}
+
+/**
+ * 得到施工单位列表
+ *
+ * @return list
+ * @author yanghua
+ */
+- (NSMutableArray *)getProblemOrgList:(NSString *)boProblemId boProblemReplyId:(NSString *)boProblemReplyId state:(NSString *)state userid:(NSString *)userid {
+    NSArray *params;
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    if ([state isEqualToString:@"QR"]) {
+        [sql appendString:@"SELECT T.*"];
+        [sql appendString:@"  FROM BO_PROBLEM_ORG T"];
+        [sql appendString:@" WHERE T.BO_PROBLEM_ORG_ID IN (SELECT R.BO_PROBLEM_ORG_ID"];
+        [sql appendString:@"                                 FROM BO_PROBLEM_REPLY R"];
+        [sql appendString:@"                                WHERE R.BO_PROBLEM_REPLY_ID = ?"];
+        [sql appendString:@"                                  AND R.USERID = ?)"];
+        [sql appendString:@"   AND T.USERID = ?"];
+        params = @[boProblemReplyId, userid, userid];
+    } else {
+        [sql appendString:@"SELECT T.* FROM BO_PROBLEM_ORG t WHERE t.BO_PROBLEM_ID = ? AND T.USERID = ? ORDER BY T.ORG_ID"];
+        params = @[boProblemId, userid];
+    }
+    
+    return [self getListBySql:sql params:params];
+}
+
+/**
+ * 得到下一家单位
+ *
+ * @return list
+ * @author yanghua
+ */
+- (NSMutableArray *)getNextOrgList:(NSString *)boProblemId boProblemReplyId:(NSString *)boProblemReplyId curStatus:(NSString *)curStatus userid:(NSString *)userid {
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    NSArray *params;
+    if ([curStatus isEqualToString:@"4"] || [curStatus isEqualToString:@"8"] || [curStatus isEqualToString:@"11"] || [curStatus isEqualToString:@"14"]) {// 分公司确认时只取当前回复单位
+        [sql appendString:@"SELECT T.*"];
+        [sql appendString:@"  FROM BO_PROBLEM_ORG T"];
+        [sql appendString:@" WHERE T.BO_PROBLEM_ORG_ID IN (SELECT R.BO_PROBLEM_ORG_ID"];
+        [sql appendString:@"                                 FROM BO_PROBLEM_REPLY R"];
+        [sql appendString:@"                                WHERE R.BO_PROBLEM_REPLY_ID = ?"];
+        [sql appendString:@"                                  AND R.USERID = ?)"];
+        [sql appendString:@"   AND T.USERID = ?"];
+        
+        params = @[boProblemReplyId, userid, userid];
+    } else {
+        [sql appendString:@"SELECT *"];
+        [sql appendString:@"  FROM BO_PROBLEM_ORG O"];
+        [sql appendString:@" WHERE O.BO_PROBLEM_ID = ?"];
+        [sql appendString:@"   AND O.USERID = ?"];
+        [sql appendString:@"   AND O.BO_PROBLEM_ORG_ID NOT IN"];
+        [sql appendString:@"       (SELECT R.BO_PROBLEM_ORG_ID"];
+        [sql appendString:@"          FROM BO_PROBLEM_REPLY R"];
+        [sql appendString:@"         WHERE R.BO_PROBLEM_ID = ?"];
+        [sql appendString:@"           AND R.STATUS = ?"];
+        [sql appendString:@"           AND R.USERID = ?)"];
+        
+        params = @[boProblemId, userid, boProblemId, curStatus, userid];
+    }
+
+    return [self getListBySql:sql params:params];
+}
+
+/**
+ * 得到施工单位列表
+ *
+ * @return list
+ * @author yanghua
+ */
+- (NSMutableArray *)getProblemOrg:(NSString *)boProblemOrgId userid:(NSString *)userid {
+    NSString *sql = @"SELECT T.* FROM BO_PROBLEM_ORG t WHERE t.BO_PROBLEM_ORG_ID = ? AND T.USERID = ?";
+    
+    return [self getListBySql:sql params:@[boProblemOrgId, userid]];
+}
+
+/**
+ * 删除
+ *
+ * @param boProblemOrgId
+ * @return true or false
+ * @author yanghua
+ */
+- (BOOL)deleteProblemOrg:(NSString *)boProblemOrgId userid:(NSString *)userid {
+    NSString *sql = @"DELETE FROM BO_PROBLEM_ORG WHERE BO_PROBLEM_ORG_ID = ? AND USERID = ?";
+    NSArray *params = @[boProblemOrgId, userid];
+    
+    return [self executeSql:sql params:params];
+}
+
+/**
+ * 获得草稿id
+ *
+ * @param boContentId
+ * @return boProblemId
+ * @author yanghua
+ */
+- (NSString *)getDraftProblemId:(NSString *)boContentId userid:(NSString *)userid {
+    NSString *sql = @"SELECT * FROM BO_PROBLEM P,BO_CONTENT T WHERE P.BO_PROBLEM_ID = T.BO_PROBLEM_ID AND T.BO_CONTENT_ID = ? AND P.USERID = ? AND T.USERID = ? AND P.IS_DRAFT = '1'";
+    NSDictionary *draftProblem = [self getMapBySql:sql params:@[boContentId, userid, userid]];
+    
+    if (draftProblem != nil) {
+        return [draftProblem objectForKey:@"bo_problem_id"];
+    }
+    
+    return @"";
+}
+
+/**
+ * 得到草稿信息
+ *
+ * @param boProblemId
+ * @return map
+ * @author yanghua
+ */
+- (NSDictionary *)getDraftInfo:(NSString *)boProblemId userid:(NSString *)userid {
+    NSString *sql = @"SELECT * FROM BO_PROBLEM WHERE BO_PROBLEM_ID = ? AND IS_DRAFT = '1' AND USERID = ?";
+    
+    return [self getMapBySql:sql params:@[boProblemId, userid]];
+}
+
+/**
+ * 校验扣分单位唯一性
+ *
+ * @param boProblemId
+ * @param orgId
+ * @return true or false
+ * @author yanghua
+ */
+- (BOOL)doVolidate:(NSString *)boProblemId orgId:(NSString *)orgId boProblemOrgId:(NSString *)boProblemOrgId userid:(NSString *)userid {
+    NSString *sql = @"SELECT * FROM BO_PROBLEM_ORG WHERE USERID = ? AND BO_PROBLEM_ID = ? AND ORG_ID = ? AND BO_PROBLEM_ORG_ID NOT IN (?)";
+    NSArray *list = [self getListBySql:sql params:@[userid, boProblemId, orgId, boProblemOrgId]];
+    
+    if (list != nil && [list count] > 0) {
+        return YES;
+    }
+    
+    return NO;
+}
+
+/**
+ * 获得当前已选合作单位
+ *
+ * @param boProblemReplyId
+ * @return list
+ * @author yanghua
+ */
+- (NSString *)getProblemOrgIds:(NSString *)boProblemId userid:(NSString *)userid {
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    [sql appendString:@"SELECT T.*"];
+    [sql appendString:@"  FROM BO_PROBLEM_ORG T"];
+    [sql appendString:@" WHERE T.BO_PROBLEM_ID = ?"];
+    [sql appendString:@"   AND T.USERID = ?"];
+    
+    NSArray *list = [self getListBySql:sql params:@[boProblemId, userid]];
+    
+    NSMutableString *ids = [[NSMutableString alloc] init];
+    
+    if (list != nil && [list count] > 0) {
+        int i = 0;
+        for (NSDictionary *dic in list) {
+            if (i != [list count] - 1) {
+                [ids appendString:[NSString stringWithFormat:@"%@,", [dic objectForKey:@"org_id"]]];
+            } else {
+                [ids appendString:[NSString stringWithFormat:@"%@", [dic objectForKey:@"org_id"]]];
+            }
+            i++;
+        }
+    }
+    
+    return ids;
+}
+
+/**
+ * 删除草稿
+ *
+ * @param boProblemId
+ * @return true or false
+ * @author yanghua
+ */
+- (BOOL)deleteProblemDraft:(NSString *)boProblemId userid:(NSString *)userid {
+    NSString *sql = @"DELETE FROM BO_PROBLEM WHERE BO_PROBLEM_ID = ? AND USERID = ? AND IS_DRAFT = '1'";
+    NSArray *params = @[boProblemId, userid];
+    
+    return [self executeSql:sql params:params];
+}
+
+- (BOOL) insertOneRecord:(NSDictionary *)jsonDictionary userid:(NSString *)userid {
+    BOOL result1 = NO;
+    BOOL result2 = NO;
+    BOOL result3 = NO;
+    
+    result1 = [self saveProblem:jsonDictionary userid:userid];
+    result2 = [self saveProblemOrg:jsonDictionary userid:userid];
+    result3 = [self saveProblemReply:jsonDictionary userid:userid];
+    
+    return result1 & result2 & result3;
+}
+
+@end

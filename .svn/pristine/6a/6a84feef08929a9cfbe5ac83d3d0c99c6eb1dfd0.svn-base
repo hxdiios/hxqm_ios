@@ -1,0 +1,1036 @@
+//
+//  HomeViewController.m
+//  hxqm_mobile
+//
+//  Created by HelloWorld on 1/14/15.
+//  Copyright (c) 2015 huaxin. All rights reserved.
+//
+
+#import "HomeViewController.h"
+#import "ValidateViewController.h"
+#import "BaseAjaxHttpRequest.h"
+#import "MyMacros.h"
+#import "Constants.h"
+#import "AppConfigure.h"
+#import "SingleProjectManager.h"
+#import "SVProgressHUD.h"
+#import "NSData+GZIP.h"
+#import "DeptManager.h"
+#import "SectionManager.h"
+#import "TemplateManager.h"
+#import "CheckManager.h"
+#import "ProblemManager.h"
+#import "CooperateManager.h"
+#import "LoadingProgress.h"
+#import "CustomIOS7AlertView.h"
+#import "EmptyView.h"
+#import "MyBrowseViewController.h"
+#import "MyFavoriteViewController.h"
+#import "PhotoBrowseController.h"
+#import "FICDViewController.h"
+#import "PhotoManager.h"
+#import "GTMNSString+URLArguments.h"
+#import "BaseFunction.h"
+#import "LogUtils.h"
+#import "BaseFormDataRequest.h"
+#import "CooperatePlanview.h"
+
+#define TAG @"_HomeViewController"
+#define MARGIN_LEFT_RIGHT 6
+#define MARGIN_TOP_OR_BOTTOM 8
+#define MARGIN 5
+#define IMAGE_TYPE_30 @"30x30"
+#define IMAGE_TYPE_60 @"60x60"
+
+@interface HomeViewController () {
+    CustomIOS7AlertView *progressAlert;
+    LoadingProgress *progress;
+    //可更新数据量
+    float updateTotalNum;
+    //已下载的字节数
+    float currentReadPosition;
+    
+    //文件输出流，有数据更新时使用
+    NSOutputStream *outputStream;
+    NSString *updateFilePath;
+    
+    //是否处于正在上传图片的状态
+    BOOL uploading;
+    //当前上传的文件index
+    NSInteger currentUploadingIndex;
+    //需要上传图片的总数
+    NSInteger totalCounts;
+    //需要上传的文件
+    NSMutableArray *fileList;
+    
+    FMDatabase *db;
+    
+    // 配置数组
+    NSMutableArray *row2Array;
+    NSMutableArray *row3Array;
+    NSMutableArray *row4Array;
+}
+
+@property (weak, nonatomic) IBOutlet UIScrollView *scrollView;
+
+@property (strong, nonatomic) UIView *mainView;
+//上传图片的数量
+@property (strong, nonatomic) UILabel *uploadNum;
+//不在上传状态下显示的view
+@property (strong, nonatomic) UIView *uploadView;
+//在上传状态下显示的view
+@property (strong, nonatomic) UIView *uploadingView;
+//上传图片的进度条
+@property (strong, nonatomic) UIProgressView *uploadingProgress;
+//显示上传到第几张图片和图片的总量
+@property (strong, nonatomic) UILabel *uploadingPicNum;
+//巡检数量
+@property (strong, nonatomic) UILabel *pollingNum;
+//整改数量
+@property (strong, nonatomic) UILabel *rectificationNum;
+//抽查数量
+@property (strong, nonatomic) UILabel *spotTestNum;
+//出工计划数量
+@property (strong, nonatomic) UILabel *planNum;
+
+@end
+
+@implementation HomeViewController {
+    CGFloat width_10_4;
+    CGFloat height_small;
+    CGFloat width_5_4_small;
+    CGFloat width_5_4_big;
+    CGFloat height_big;
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // Do any additional setup after loading the view from its nib.
+    [self initView];
+    uploading = NO;
+    db = [BaseFunction createDB];
+    [db open];
+    [self getUpdatableNum];
+}
+
+/**
+ *  初始化控件
+ */
+- (void) initView {
+    // 设置首页标题栏文字
+    self.navigationItem.title = @"智检通";
+    // 设置首页标题栏文字的样式
+    [[UINavigationBar appearance] setTitleTextAttributes: [NSDictionary dictionaryWithObjectsAndKeys:[UIColor whiteColor], NSForegroundColorAttributeName, nil]];
+    
+    CGFloat ScreenWidth = UI_SCREEN_WIDTH;
+    width_10_4 = (ScreenWidth - MARGIN_LEFT_RIGHT - MARGIN) / 2;
+    width_5_4_small = (width_10_4 - MARGIN) / 2;
+    width_5_4_big = width_10_4;
+    height_small = width_10_4 * 0.4;
+    height_big = height_small * 2;
+    
+    row2Array = [NSMutableArray arrayWithObjects:@"1", @"1", @"1", @"1", @"1", nil];
+    row3Array = [NSMutableArray arrayWithObjects:@"1", @"1", @"1", nil];
+    row4Array = [NSMutableArray arrayWithObjects:@"1", @"1", @"1", nil];
+    
+    [self initMainView];
+}
+
+- (void)initMainView {
+    CGFloat totalHeight = MARGIN_TOP_OR_BOTTOM * 2 + MARGIN * 5 + height_small * 7;
+    _mainView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, UI_SCREEN_WIDTH, totalHeight)];
+    CGFloat rowXLeft = MARGIN_LEFT_RIGHT / 2;
+    CGFloat rowYLeft = MARGIN_TOP_OR_BOTTOM;
+    CGFloat rowXRight = rowXLeft + width_10_4 + MARGIN;
+    CGFloat rowYRight = MARGIN_TOP_OR_BOTTOM;
+    /** 第一行 **/
+    // 签到
+    UIButton *checkInUIButton = [self getUIButtonWithFrame:CGRectMake(rowXLeft, rowYLeft, width_10_4, height_small) color:[UIColor colorWithRed:83/255.0 green:161/255.0 blue:225/255.0 alpha:1.0]];
+    [checkInUIButton addTarget:self action:@selector(checkIn:) forControlEvents:UIControlEventTouchUpInside];
+    UIView *checkInView = [[UIView alloc] initWithFrame:CGRectMake((width_10_4 - 80) / 2, (height_small - 44) / 2, 80, 44)];
+    checkInView.userInteractionEnabled = NO;
+    UIImageView *checkInImg = [self getImageViewWithImageName:@"icon_check_in" XYPoint:CGPointMake(0, 7) type:IMAGE_TYPE_30];
+    UILabel *checkInLabel = [self getLabelWithTitle:@"签到" frame:CGRectMake(35, 12, 40, 20)];
+    [checkInView addSubview:checkInImg];
+    [checkInView addSubview:checkInLabel];
+    [checkInUIButton addSubview:checkInView];
+    // 上传
+    UIButton *uploadUIButton = [self getUIButtonWithFrame:CGRectMake(rowXRight, rowYRight, width_10_4, height_small) color:[UIColor colorWithRed:43/255.0 green:138/255.0 blue:217/255.0 alpha:1.0]];
+    [uploadUIButton addTarget:self action:@selector(upload:) forControlEvents:UIControlEventTouchUpInside];
+    _uploadView = [[UIView alloc] initWithFrame:CGRectMake((width_10_4 - 120) / 2, (height_small - 44) / 2, 120, 44)];
+    _uploadView.userInteractionEnabled = NO;
+    UIImageView *uploadImg = [self getImageViewWithImageName:@"icon_upload" XYPoint:CGPointMake(0, 7) type:IMAGE_TYPE_30];
+    _uploadNum = [self getLabelWithTitle:@"上 传(0)" frame:CGRectMake(35, 12, 85, 20)];
+    [_uploadView addSubview:uploadImg];
+    [_uploadView addSubview:_uploadNum];
+    _uploadingView = [[UIView alloc] initWithFrame:CGRectMake(8, (height_small - 30) / 2, width_10_4 - 16, 30)];
+    _uploadingView.userInteractionEnabled = NO;
+    _uploadingProgress = [[UIProgressView alloc] initWithFrame:CGRectMake(0, 14, width_10_4 - 65, 2)];
+    _uploadingPicNum = [self getLabelWithTitle:@"100/200" frame:CGRectMake(width_10_4 - 63, 7, 62, 16)];
+    _uploadingPicNum.font = [UIFont systemFontOfSize:12.0];
+    [_uploadingView addSubview:_uploadingProgress];
+    [_uploadingView addSubview:_uploadingPicNum];
+    [uploadUIButton addSubview:_uploadView];
+    [uploadUIButton addSubview:_uploadingView];
+    [_uploadingView setHidden:YES];
+    /** 第二行 **/
+    // 巡检
+    rowYLeft += height_small + MARGIN;
+    UIButton *pollingUIButton = [self getUIButtonWithFrame:CGRectMake(rowXLeft, rowYLeft, width_5_4_big, height_big) color:[UIColor colorWithRed:55/255.0 green:142/255.0 blue:245/255.0 alpha:1.0]];
+    [pollingUIButton addTarget:self action:@selector(polling:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *pollingImg = [self getImageViewWithImageName:@"icon_xunjian" XYPoint:CGPointMake((width_5_4_big - 60) / 2, (height_big - 60) / 2) type:IMAGE_TYPE_60];
+    _pollingNum = [self getLabelWithTitle:@"巡检(0)" frame:CGRectMake(3, 3, width_5_4_big - 10, 20)];
+    [pollingUIButton addSubview:pollingImg];
+    [pollingUIButton addSubview:_pollingNum];
+    if ([@"0" isEqualToString:row2Array[0]]) {
+        [pollingUIButton setHidden:YES];
+    }
+    // 整改
+    rowYRight += height_small + MARGIN;
+    UIButton *rectificateUIButton = [self getUIButtonWithFrame:CGRectMake(rowXRight, rowYRight, width_5_4_small, height_small) color:[UIColor colorWithRed:13/255.0 green:99/255.0 blue:201/255.0 alpha:1.0]];
+    [rectificateUIButton addTarget:self action:@selector(rectificate:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *rectificateImg = [self getImageViewWithImageName:@"icon_zhenggai" XYPoint:CGPointMake((width_5_4_small - 30) / 2, (height_small - 30) / 2 + 5) type:IMAGE_TYPE_30];
+    _rectificationNum = [self getLabelWithTitle:@"整改(0)" frame:CGRectMake(3, 3, width_5_4_small - 3, 20)];
+    [rectificateUIButton addSubview:rectificateImg];
+    [rectificateUIButton addSubview:_rectificationNum];
+    if ([@"0" isEqualToString:row2Array[1]]) {
+        [rectificateUIButton setHidden:YES];
+    }
+    // 快捷整改
+    UIButton *fastRectificateUIButton = [self getUIButtonWithFrame:CGRectMake(rowXRight + width_5_4_small + MARGIN, rowYRight, width_5_4_small, height_small) color:[UIColor colorWithRed:13/255.0 green:99/255.0 blue:201/255.0 alpha:1.0]];
+    [fastRectificateUIButton addTarget:self action:@selector(fastRectificate:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *fastRectificateImg = [self getImageViewWithImageName:@"icon_kjzg" XYPoint:CGPointMake((width_5_4_small - 30) / 2, (height_small - 30) / 2 + 5) type:IMAGE_TYPE_30];
+    UILabel *fastRectificateLabel = [self getLabelWithTitle:@"快捷整改" frame:CGRectMake(3, 3, width_5_4_small - 3, 20)];
+    [fastRectificateUIButton addSubview:fastRectificateImg];
+    [fastRectificateUIButton addSubview:fastRectificateLabel];
+    if ([@"0" isEqualToString:row2Array[2]]) {
+        [fastRectificateUIButton setHidden:YES];
+    }
+    // 快捷巡检
+    rowYLeft += height_big + MARGIN;
+    UIButton *fastPollingUIButton = [self getUIButtonWithFrame:CGRectMake(rowXLeft, rowYLeft, width_10_4, height_small) color:[UIColor colorWithRed:0/255.0 green:198/255.0 blue:168/255.0 alpha:1.0]];
+    [fastPollingUIButton addTarget:self action:@selector(fastPolling:) forControlEvents:UIControlEventTouchUpInside];
+    UIView *fastPollingView = [[UIView alloc] initWithFrame:CGRectMake((width_10_4 - 120) / 2, (height_small - 44) / 2, 120, 44)];
+    fastPollingView.userInteractionEnabled = NO;
+    UIImageView *fastPollingImg = [self getImageViewWithImageName:@"icon_kjxj" XYPoint:CGPointMake(0, 7) type:IMAGE_TYPE_30];
+    UILabel *fastPollingLabel = [self getLabelWithTitle:@"快捷巡检" frame:CGRectMake(35, 12, 85, 20)];
+    [fastPollingView addSubview:fastPollingImg];
+    [fastPollingView addSubview:fastPollingLabel];
+    [fastPollingUIButton addSubview:fastPollingView];
+    if ([@"0" isEqualToString:row2Array[3]]) {
+        [fastPollingUIButton setHidden:YES];
+    }
+    // 抽查
+    rowYRight += height_small + MARGIN;
+    UIButton *checkUIButton = [self getUIButtonWithFrame:CGRectMake(rowXRight, rowYRight, width_5_4_big, height_big) color:[UIColor colorWithRed:0/255.0 green:198/255.0 blue:168/255.0 alpha:1.0]];
+    [checkUIButton addTarget:self action:@selector(check:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *checkImg = [self getImageViewWithImageName:@"icon_choucha" XYPoint:CGPointMake((width_5_4_big - 60) / 2, (height_big - 60) / 2) type:IMAGE_TYPE_60];
+    _spotTestNum = [self getLabelWithTitle:@"抽查(0)" frame:CGRectMake(3, 3, width_5_4_big - 10, 20)];
+    [checkUIButton addSubview:checkImg];
+    [checkUIButton addSubview:_spotTestNum];
+    if ([@"0" isEqualToString:row2Array[4]]) {
+        [checkUIButton setHidden:YES];
+    }
+    /** 第三行 **/
+    // 最近浏览
+    rowYLeft += height_small + MARGIN;
+    UIButton *recentlyViewedUIButton = [self getUIButtonWithFrame:CGRectMake(rowXLeft, rowYLeft, width_5_4_small, height_small) color:[UIColor colorWithRed:75/255.0 green:190/255.0 blue:35/255.0 alpha:1.0]];
+    [recentlyViewedUIButton addTarget:self action:@selector(recentlyViewed:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *recentlyViewedImg = [self getImageViewWithImageName:@"icon_liulan" XYPoint:CGPointMake((width_5_4_small - 30) / 2, (height_small - 30) / 2 + 5) type:IMAGE_TYPE_30];
+    UILabel *recentlyViewedLabel = [self getLabelWithTitle:@"最近浏览" frame:CGRectMake(3, 3, width_5_4_small - 3, 20)];
+    [recentlyViewedUIButton addSubview:recentlyViewedImg];
+    [recentlyViewedUIButton addSubview:recentlyViewedLabel];
+    if ([@"0" isEqualToString:row3Array[0]]) {
+        [recentlyViewedUIButton setHidden:YES];
+    }
+    // 我的收藏
+    UIButton *myFavoritesUIButton = [self getUIButtonWithFrame:CGRectMake(rowXLeft + MARGIN + width_5_4_small, rowYLeft, width_5_4_small, height_small) color:[UIColor colorWithRed:75/255.0 green:190/255.0 blue:35/255.0 alpha:1.0]];
+    [myFavoritesUIButton addTarget:self action:@selector(myFavorites:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *myFavoritesImg = [self getImageViewWithImageName:@"icon_favorite" XYPoint:CGPointMake((width_5_4_small - 30) / 2, (height_small - 30) / 2 + 5) type:IMAGE_TYPE_30];
+    UILabel *myFavoritesLabel = [self getLabelWithTitle:@"我的收藏" frame:CGRectMake(3, 3, width_5_4_small - 3, 20)];
+    [myFavoritesUIButton addSubview:myFavoritesImg];
+    [myFavoritesUIButton addSubview:myFavoritesLabel];
+    if ([@"0" isEqualToString:row3Array[1]]) {
+        [myFavoritesUIButton setHidden:YES];
+    }
+    // 出工计划
+    rowYRight += height_big + MARGIN;
+    UIButton *gotoWorkPlanUIButton = [self getUIButtonWithFrame:CGRectMake(rowXRight, rowYRight, width_10_4, height_small) color:[UIColor colorWithRed:75/255.0 green:190/255.0 blue:35/255.0 alpha:1.0]];
+    [gotoWorkPlanUIButton addTarget:self action:@selector(goToWorkPlan:) forControlEvents:UIControlEventTouchUpInside];
+    UIView *gotoWorkPlanView = [[UIView alloc] initWithFrame:CGRectMake((width_10_4 - 130) / 2, (height_small - 44) / 2, 130, 44)];
+    gotoWorkPlanView.userInteractionEnabled = NO;
+    UIImageView *gotoWorkPlanImg = [self getImageViewWithImageName:@"icon_cgjh" XYPoint:CGPointMake(0, 7) type:IMAGE_TYPE_30];
+    _planNum = [self getLabelWithTitle:@"出工计划(0)" frame:CGRectMake(31, 12, 100, 20)];
+    [gotoWorkPlanView addSubview:gotoWorkPlanImg];
+    [gotoWorkPlanView addSubview:_planNum];
+    [gotoWorkPlanUIButton addSubview:gotoWorkPlanView];
+    if ([@"0" isEqualToString:row3Array[2]]) {
+        [gotoWorkPlanUIButton setHidden:YES];
+    }
+    /** 第四行 **/
+    // 照片管理
+    rowYLeft += height_small + MARGIN;
+    UIButton *photoManageUIButton = [self getUIButtonWithFrame:CGRectMake(rowXLeft, rowYLeft, width_10_4, height_small) color:[UIColor colorWithRed:255/255.0 green:168/255.0 blue:0/255.0 alpha:1.0]];
+    [photoManageUIButton addTarget:self action:@selector(photosManage:) forControlEvents:UIControlEventTouchUpInside];
+    UIView *photoManageView = [[UIView alloc] initWithFrame:CGRectMake((width_10_4 - 120) / 2, (height_small - 44) / 2, 120, 44)];
+    photoManageView.userInteractionEnabled = NO;
+    UIImageView *photoManageImg = [self getImageViewWithImageName:@"icon_photos" XYPoint:CGPointMake(0, 7) type:IMAGE_TYPE_30];
+    UILabel *photoManageLabel = [self getLabelWithTitle:@"照片管理" frame:CGRectMake(35, 12, 85, 20)];
+    [photoManageView addSubview:photoManageImg];
+    [photoManageView addSubview:photoManageLabel];
+    [photoManageUIButton addSubview:photoManageView];
+    if ([@"0" isEqualToString:row4Array[0]]) {
+        [photoManageUIButton setHidden:YES];
+    }
+    // 统计
+    rowYRight += height_small + MARGIN;
+    UIButton *statisticsUIButton = [self getUIButtonWithFrame:CGRectMake(rowXRight, rowYRight, width_5_4_small, height_small) color:[UIColor colorWithRed:255/255.0 green:168/255.0 blue:0/255.0 alpha:1.0]];
+    [statisticsUIButton addTarget:self action:@selector(statistics:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *statisticsImg = [self getImageViewWithImageName:@"icon_tongji" XYPoint:CGPointMake((width_5_4_small - 30) / 2, (height_small - 30) / 2 + 5) type:IMAGE_TYPE_30];
+    UILabel *statisticsLabel = [self getLabelWithTitle:@"统计" frame:CGRectMake(3, 3, width_5_4_small - 3, 20)];
+    [statisticsUIButton addSubview:statisticsImg];
+    [statisticsUIButton addSubview:statisticsLabel];
+    if ([@"0" isEqualToString:row4Array[1]]) {
+        [statisticsUIButton setHidden:YES];
+    }
+    // 排行榜
+    UIButton *rankingUIButton = [self getUIButtonWithFrame:CGRectMake(rowXRight + width_5_4_small + MARGIN, rowYRight, width_5_4_small, height_small) color:[UIColor colorWithRed:255/255.0 green:168/255.0 blue:0/255.0 alpha:1.0]];
+    [rankingUIButton addTarget:self action:@selector(ranking:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *rankingImg = [self getImageViewWithImageName:@"icon_paihang" XYPoint:CGPointMake((width_5_4_small - 30) / 2, (height_small - 30) / 2 + 5) type:IMAGE_TYPE_30];
+    UILabel *rankingLabel = [self getLabelWithTitle:@"排行榜" frame:CGRectMake(3, 3, width_5_4_small - 3, 20)];
+    [rankingUIButton addSubview:rankingImg];
+    [rankingUIButton addSubview:rankingLabel];
+    if ([@"0" isEqualToString:row4Array[2]]) {
+        [rankingUIButton setHidden:YES];
+    }
+    /** 第五行 **/
+    // 照片样例
+    rowYLeft += height_small + MARGIN;
+    UIButton *photoSampleUIButton = [self getUIButtonWithFrame:CGRectMake(rowXLeft, rowYLeft, width_5_4_small, height_small) color:[UIColor colorWithRed:254/255.0 green:134/255.0 blue:74/255.0 alpha:1.0]];
+    [photoSampleUIButton addTarget:self action:@selector(photoSample:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *photoSampleImg = [self getImageViewWithImageName:@"icon_zpyl" XYPoint:CGPointMake((width_5_4_small - 30) / 2, (height_small - 30) / 2 + 5) type:IMAGE_TYPE_30];
+    UILabel *photoSampleLabel = [self getLabelWithTitle:@"照片样例" frame:CGRectMake(3, 3, width_5_4_small - 3, 20)];
+    [photoSampleUIButton addSubview:photoSampleImg];
+    [photoSampleUIButton addSubview:photoSampleLabel];
+    // 上传坐标
+    UIButton *uploadCoordinateUIButton = [self getUIButtonWithFrame:CGRectMake(rowXLeft + MARGIN + width_5_4_small, rowYLeft, width_5_4_small, height_small) color:[UIColor colorWithRed:254/255.0 green:134/255.0 blue:74/255.0 alpha:1.0]];
+    [uploadCoordinateUIButton addTarget:self action:@selector(uploadCoordinate:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *uploadCoordinateImg = [self getImageViewWithImageName:@"icon_sczb" XYPoint:CGPointMake((width_5_4_small - 30) / 2, (height_small - 30) / 2 + 5) type:IMAGE_TYPE_30];
+    UILabel *uploadCoordinateLabel = [self getLabelWithTitle:@"上传坐标" frame:CGRectMake(3, 3, width_5_4_small - 3, 20)];
+    [uploadCoordinateUIButton addSubview:uploadCoordinateImg];
+    [uploadCoordinateUIButton addSubview:uploadCoordinateLabel];
+    // 通告
+    rowYRight += height_small + MARGIN;
+    UIButton *announceUIButton = [self getUIButtonWithFrame:CGRectMake(rowXRight, rowYLeft, width_5_4_small, height_small) color:[UIColor colorWithRed:254/255.0 green:134/255.0 blue:74/255.0 alpha:1.0]];
+    [announceUIButton addTarget:self action:@selector(announce:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *announceImg = [self getImageViewWithImageName:@"icon_tg" XYPoint:CGPointMake((width_5_4_small - 30) / 2, (height_small - 30) / 2 + 5) type:IMAGE_TYPE_30];
+    UILabel *announceLabel = [self getLabelWithTitle:@"通告" frame:CGRectMake(3, 3, width_5_4_small - 3, 20)];
+    [announceUIButton addSubview:announceImg];
+    [announceUIButton addSubview:announceLabel];
+    // 摇一摇
+    UIButton *shakingUIButton = [self getUIButtonWithFrame:CGRectMake(rowXRight + width_5_4_small + MARGIN, rowYLeft, width_5_4_small, height_small) color:[UIColor colorWithRed:254/255.0 green:134/255.0 blue:74/255.0 alpha:1.0]];
+    [shakingUIButton addTarget:self action:@selector(shake:) forControlEvents:UIControlEventTouchUpInside];
+    UIImageView *shakingImg = [self getImageViewWithImageName:@"icon_shake" XYPoint:CGPointMake((width_5_4_small - 30) / 2, (height_small - 30) / 2 + 5) type:IMAGE_TYPE_30];
+    UILabel *shakingLabel = [self getLabelWithTitle:@"摇一摇" frame:CGRectMake(3, 3, width_5_4_small - 3, 20)];
+    [shakingUIButton addSubview:shakingImg];
+    [shakingUIButton addSubview:shakingLabel];
+    
+    [_mainView addSubview:checkInUIButton];
+    [_mainView addSubview:uploadUIButton];
+    [_mainView addSubview:pollingUIButton];
+    [_mainView addSubview:fastPollingUIButton];
+    [_mainView addSubview:rectificateUIButton];
+    [_mainView addSubview:fastRectificateUIButton];
+    [_mainView addSubview:checkUIButton];
+    [_mainView addSubview:recentlyViewedUIButton];
+    [_mainView addSubview:myFavoritesUIButton];
+    [_mainView addSubview:gotoWorkPlanUIButton];
+    [_mainView addSubview:photoManageUIButton];
+    [_mainView addSubview:statisticsUIButton];
+    [_mainView addSubview:rankingUIButton];
+    [_mainView addSubview:photoSampleUIButton];
+    [_mainView addSubview:uploadCoordinateUIButton];
+    [_mainView addSubview:announceUIButton];
+    [_mainView addSubview:shakingUIButton];
+    
+    _scrollView.contentSize = CGSizeMake(0, totalHeight);
+    [_scrollView addSubview:_mainView];
+    _scrollView.showsVerticalScrollIndicator = NO;
+}
+
+- (UIButton *)getUIButtonWithFrame:(CGRect)frame color:(UIColor *)color {
+    UIButton *button = [[UIButton alloc] initWithFrame:frame];
+    [button setBackgroundColor:color];
+    return button;
+}
+
+- (UIImageView *)getImageViewWithImageName:(NSString *)imageName XYPoint:(CGPoint)point type:(NSString *)type {
+    UIImageView *imageView = [[UIImageView alloc] initWithImage:[UIImage imageNamed:imageName]];
+    if ([IMAGE_TYPE_30 isEqual:type]) {
+        imageView.frame = CGRectMake(point.x, point.y, 30.0, 30.0);
+    } else if ([IMAGE_TYPE_60 isEqual:type]) {
+        imageView.frame = CGRectMake(point.x, point.y, 60.0, 60.0);
+    }
+    
+    return imageView;
+}
+
+- (UILabel *)getLabelWithTitle:(NSString *)title frame:(CGRect)frame {
+    UILabel *label = [[UILabel alloc] initWithFrame:frame];
+    label.text = title;
+    label.textColor = [UIColor whiteColor];
+    label.font = [UIFont systemFontOfSize:14.0];
+    label.userInteractionEnabled = NO;
+    
+    return label;
+}
+
+- (void) viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    //每次进入都需要检查下上传的图片数量是否变化
+    [db open];
+    if(!uploading) {
+        NSString *photoCounts = [self getUploadablePicNum];
+        _uploadNum.text = [NSString stringWithFormat:@"上传(%@)",photoCounts];
+    }
+}
+
+#pragma mark 签到
+- (IBAction)checkIn:(id)sender {
+    UIViewController *validateViewController = [[ValidateViewController alloc] initWithNibName:@"ValidateViewController" bundle:nil];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:validateViewController];
+    [self.navigationController presentViewController:nav animated:YES completion:nil];
+}
+
+#pragma mark 上传
+- (IBAction)upload:(id)sender {
+    if(uploading) {
+        return;
+    }
+    
+    PhotoManager *photoManager = [[PhotoManager alloc] initWithDb:db];
+    NSArray *tempArray = [photoManager getXjUploadPhotoList:nil userid:[AppConfigure objectForKey:USERID]];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"tempArray = %@", tempArray]];
+    if([tempArray count] == 0) {
+        return;
+    }
+    
+    fileList = [self prepareFileArray:tempArray];
+    totalCounts = [fileList count];
+    //当前正在上传的图片index
+    currentUploadingIndex = 0;
+    //上传图片
+    [self uploadPics];
+    //更新上传的图片进度数
+    [self updateUploadingUI:currentUploadingIndex];
+}
+
+/**
+ *  上传图片
+ */
+- (void) uploadPics {
+    NSURL *url = [NSURL URLWithString:FILEUPLOAD];
+    BaseFormDataRequest *request = [[BaseFormDataRequest alloc] initWithURL:url];
+    //设置上传进度显示
+    [request setUploadProgressDelegate:_uploadingProgress];
+    NSDictionary *currentMap = [fileList objectAtIndex:0];
+    //拼接上传的参数
+    [self setPostParams:currentUploadingIndex currentMap:currentMap request:request];
+    [request startAsynchronous];
+    uploading = YES;
+    NSString *isMergedPng = [currentMap objectForKey:@"is_merged_png"];
+    NSString *currentBoPhotoId = [currentMap objectForKey:@"bo_photo_id"];
+    __weak BaseFormDataRequest *weakRequest = request;
+    __weak typeof(self) weakSelf = self;
+    [request setCompletionBlock:^{
+        NSString *result = [weakRequest responseString];
+        if([result myContainsString:SESSION_TIMEOUT]) {
+            [LogUtils Log:TAG content:[NSString stringWithFormat:@"result = %@", result]];
+            [weakSelf sessionTimeout];
+            [self updateUploadingUI:totalCounts];
+        } else {
+            if([@"success" isEqualToString:result]) {
+                //上传成功
+                currentUploadingIndex ++;
+                [self updateUploadingUI:currentUploadingIndex];
+                if([fileList count] > 0) {
+                    
+                    //更新本地图片的上传状态
+                    if([@"NO" isEqualToString:isMergedPng]) {
+                        if(self.navigationController.tabBarController.selectedIndex != 0) {
+                            [db open];
+                        }
+                        PhotoManager *photoManager = [[PhotoManager alloc] initWithDb:db];
+                        BOOL updateResult = [photoManager updataPhotoUploadStatus:currentBoPhotoId status:@"2" userid:[AppConfigure objectForKey:USERID]];
+                        [LogUtils Log:TAG content:[NSString stringWithFormat:@"本地图片的上传状态：%@", updateResult ? @"成功" : @"失败"]];
+                    }
+                    
+                    [fileList removeObjectAtIndex:0];
+                    if([fileList count] > 0) {
+                        //更新数据库记录
+                        [self uploadPics];
+                    } else {
+                        [SVProgressHUD showSuccessWithStatus:@"上传完毕"];
+                        uploading = NO;
+                    }
+                }
+            } else {
+                //上传失败
+                [self updateUploadingUI:totalCounts];
+                _uploadNum.text = [NSString stringWithFormat:@"上传(%@)",[self getUploadablePicNum]];
+                uploading = NO;
+            }
+        }
+    }];
+    [request setFailedBlock:^{
+        [SVProgressHUD showErrorWithStatus:@"网络异常"];
+        [self updateUploadingUI:totalCounts];
+        NSString *photoCounts = [self getUploadablePicNum];
+        _uploadNum.text = [NSString stringWithFormat:@"上传(%@)",photoCounts];
+        uploading = NO;
+    }];
+}
+
+/**
+ *  获取可上传的图片数量
+ *
+ *  @return
+ */
+- (NSString *) getUploadablePicNum {
+    PhotoManager *photoManager = [[PhotoManager alloc] initWithDb:db];
+    NSString *photoCounts =[photoManager getUploadPhotoCounts:[AppConfigure objectForKey:USERID]];
+    return photoCounts;
+}
+
+/**
+ *  上传前先对字段进行处理
+ *
+ *  @param tempArray 数据库获取的上传图片列表
+ *
+ *  @return 处理后的上传图片列表
+ */
+- (NSMutableArray *) prepareFileArray : (NSArray *) tempArray {
+    NSMutableArray *fileArray = [[NSMutableArray alloc] init];
+    
+    for (NSInteger i = 0; i < tempArray.count; i++) {
+        NSDictionary *fileMap = [tempArray objectAtIndex:i];
+        [fileMap setValue:@"NO" forKey:@"is_merged_png"];
+        
+        NSString *isDoodled = [fileMap objectForKey:@"is_doodled"];
+        //如果已进行涂鸦，则加到fileArray的头部
+        if([@"1" isEqualToString:isDoodled]) {
+            NSMutableDictionary *mergedMap = [[NSMutableDictionary alloc] initWithDictionary:fileMap];
+            NSString *mergedPhotoPath = [BaseFunction getDoodlePicSystemFolderPath];
+            [mergedMap setObject:mergedPhotoPath forKey:@"photo_path"];
+            [mergedMap setObject:@"YES" forKey:@"is_merged_png"];
+            [mergedMap setObject:[mergedMap objectForKey:@"bo_photo_id"] forKey:@"file_prefix"];
+            [mergedMap setObject:@".png" forKey:@"file_suffix"];
+            [fileArray addObject:mergedMap];
+        } else {
+            [fileMap setValue:@"0" forKey:@"is_doodled"];
+        }
+        
+        if([@"" isEqualToString:[fileMap objectForKey:@"bo_check_project_id"]] && [@"3" isEqualToString:[fileMap objectForKey:@"is_formal"]]) {
+            [fileMap setValue:@"NO_NEED" forKey:@"bo_check_project_id"];
+        }
+        
+        [fileArray addObject:fileMap];
+    }
+    
+    return fileArray;
+}
+
+/**
+ *  对字符串进行utf-8编码
+ *
+ *  @param str 需编码的字符串
+ *
+ *  @return 编码后得到的字符串
+ */
+- (NSString *) utf8Encode : (NSString *) str {
+    return [str stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+}
+
+/**
+ *  拼接post上传参数
+ *
+ *  @param uploadingIndex 上传到第几张图片
+ *  @param currentMap     当前上传图片的信息字典
+ *  @param request        http request对象
+ */
+- (void) setPostParams : (NSInteger) uploadingIndex currentMap : (NSDictionary *) currentMap request : (BaseFormDataRequest *) request {
+    [request setPostValue:[currentMap objectForKey:@"bo_photo_id"] forKey:@"BO_PHOTO_ID"];
+    [request setPostValue:[self utf8Encode:[currentMap objectForKey:@"photo_name"]] forKey:@"PHOTO_NAME"];
+    [request setPostValue:[currentMap objectForKey:@"photo_path"] forKey:@"PHOTO_PATH"];
+    [request setPostValue:[currentMap objectForKey:@"bo_critical_point_ver_id"] forKey:@"BO_CRITICAL_POINT_VER_ID"];
+    [request setPostValue:[self utf8Encode:[currentMap objectForKey:@"point_name"]]forKey:@"POINT_NAME"];
+    [request setPostValue:[currentMap objectForKey:@"bo_single_project_id"] forKey:@"BO_SINGLE_PROJECT_ID"];
+    [request setPostValue:[currentMap objectForKey:@"bo_project_section_id"] forKey:@"BO_PROJECT_SECTION_ID"];
+    [request setPostValue:[currentMap objectForKey:@"file_prefix"] forKey:@"FILE_PREFIX"];
+    [request setPostValue:[currentMap objectForKey:@"file_suffix"] forKey:@"FILE_SUFFIX"];
+    [request setPostValue:[currentMap objectForKey:@"create_userid"] forKey:@"CREATE_USERID"];
+    [request setPostValue:[self utf8Encode:[currentMap objectForKey:@"MEMO"]] forKey:@"MEMO"];
+    [request setPostValue:[currentMap objectForKey:@"latitude"] forKey:@"LATITUDE"];
+    [request setPostValue:[currentMap objectForKey:@"longitude"] forKey:@"LONGITUDE"];
+    [request setPostValue:[currentMap objectForKey:@"create_date"] forKey:@"CREATE_DATE"];
+    [request setPostValue:[currentMap objectForKey:@"ref_mineimage_id"] forKey:@"REF_MINEIMAGE_ID"];
+    [request setPostValue:[currentMap objectForKey:@"is_formal"] forKey:@"IS_FORMAL"];
+    [request setPostValue:[currentMap objectForKey:@"photo_type"] forKey:@"PHOTO_TYPE"];
+    [request setPostValue:[currentMap objectForKey:@"photo_size"] forKey:@"PHOTO_SIZE"];
+    [request setPostValue:[currentMap objectForKey:@"image_quality"] forKey:@"IMAGE_QUALITY"];
+    [request setPostValue:[currentMap objectForKey:@"is_doodled"] forKey:@"IS_DOODLED"];
+    [request setPostValue:[self utf8Encode:[currentMap objectForKey:@"bo_content_name"]] forKey:@"BO_CONTENT_NAME"];
+    [request setPostValue:[currentMap objectForKey:@"bo_template_detail_ver_id"] forKey:@"BO_TEMPLATE_DETAIL_VER_ID"];
+    [request setPostValue:[currentMap objectForKey:@"e"] forKey:@"E"];
+    [request setPostValue:[currentMap objectForKey:@"n"] forKey:@"N"];
+    [request setPostValue:[currentMap objectForKey:@"serialize_num"] forKey:@"SERIALIZE_NUM"];
+    [request setPostValue:[NSString stringWithFormat:@"%ld",uploadingIndex] forKey:@"CURRENT_PHOTO"];
+    NSString *distance = [BaseFunction calculateDistance:[(NSString *)[currentMap objectForKey:@"e"] floatValue] latitude:[(NSString *)[currentMap objectForKey:@"n"] floatValue] longitude2:[AppConfigure objectForKey:LONGITUDE] latitude2:[AppConfigure objectForKey:LATITUDE]];
+    [request setPostValue:distance forKey:@"DISTANCE"];
+    [request setPostValue:[currentMap objectForKey:@"bo_project_section_id"] forKey:@"BO_PROJECT_GROUP_ID"];
+    [request setPostValue:[currentMap objectForKey:@"serialize_num"] forKey:@"PHOTO_NUMBER"];
+    [request setPostValue:[NSString stringWithFormat:@"%ld",totalCounts] forKey:@"totalCounts"];
+    [request setPostValue:[NSString stringWithFormat:@"%ld",uploadingIndex + 1] forKey:@"leftNum"];
+    
+    NSString *isDoodled = [currentMap objectForKey:@"is_doodled"];
+    NSString *photoFullPath;
+    if([@"1" isEqualToString:isDoodled]) {
+        //涂鸦图片的路径
+        NSString *photoPath = [currentMap objectForKey:@"photo_path"];
+        if([photoPath myContainsString:@"doodlePic"]) {
+            photoFullPath = [[photoPath stringByAppendingPathComponent:[currentMap objectForKey:@"file_prefix"]] stringByAppendingString:[currentMap objectForKey:@"file_suffix"]];
+            photoFullPath = [BaseFunction getCurrentPathWithFilePath:photoFullPath];
+        } else {
+            //正常图片的路径
+            photoFullPath = [[photoPath stringByAppendingPathComponent:[currentMap objectForKey:@"file_prefix"]] stringByAppendingString:[currentMap objectForKey:@"file_suffix"]];
+            photoFullPath = [BaseFunction getCurrentPathWithFilePath:photoFullPath];
+        }
+    } else {
+        //正常图片的路径
+        photoFullPath = [[[currentMap objectForKey:@"photo_path"] stringByAppendingPathComponent:[currentMap objectForKey:@"file_prefix"]] stringByAppendingString:[currentMap objectForKey:@"file_suffix"]];
+        photoFullPath = [BaseFunction getCurrentPathWithFilePath:photoFullPath];
+    }
+    [request setPostValue:[currentMap objectForKey:@"is_merged_png"] forKey:@"IS_MERGED_PNG"];
+    [request setFile:photoFullPath forKey:@"file1"];
+}
+
+/**
+ *  根据当前上传完成的图片序列号更新上传ui的显示
+ *
+ *  @param uploadingIndex 已上传图片的序列号
+ */
+- (void) updateUploadingUI : (NSInteger) uploadingIndex {
+    if(totalCounts == uploadingIndex) {
+        //上传完成
+        _uploadView.hidden = NO;
+        _uploadingView.hidden = YES;
+        _uploadNum.text = @"上 传(0)";
+    } else {
+        //上传中
+        _uploadView.hidden = YES;
+        _uploadingView.hidden = NO;
+        _uploadingPicNum.text = [NSString stringWithFormat:@"(%ld/%ld)",uploadingIndex,totalCounts];
+    }
+}
+
+#pragma mark 巡检
+- (IBAction)polling:(id)sender {
+    //进入工程列表页面
+    [self.tabBarController setSelectedIndex:1];
+}
+
+#pragma mark 快捷巡检
+- (IBAction)fastPolling:(id)sender {
+    //快速巡检
+}
+
+#pragma mark 整改
+- (IBAction)rectificate:(id)sender {
+    [self.tabBarController setSelectedIndex:2];
+}
+
+#pragma mark 快捷整改
+- (IBAction)fastRectificate:(id)sender {
+    [LogUtils Log:TAG content:@"快捷整改"];
+}
+
+#pragma mark 抽查
+- (IBAction)check:(id)sender {
+    [self.tabBarController setSelectedIndex:2];
+}
+
+#pragma mark 最近浏览
+- (IBAction)recentlyViewed:(id)sender {
+    //最近浏览
+    MyBrowseViewController *browseViewController = [[MyBrowseViewController alloc] initWithNibName:@"MyBrowseViewController" bundle:nil];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:browseViewController];
+    [self.navigationController presentViewController:nav animated:YES completion:nil];
+}
+
+#pragma mark 我的收藏
+- (IBAction)myFavorites:(id)sender {
+    //我的收藏
+    MyFavoriteViewController *favViewController = [[MyFavoriteViewController alloc] initWithNibName:@"MyFavoriteViewController" bundle:nil];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:favViewController];
+    [self.navigationController presentViewController:nav animated:YES completion:nil];
+}
+
+#pragma mark 出工计划
+- (IBAction)goToWorkPlan:(id)sender {
+    [LogUtils Log:TAG content:@"出工计划"];
+    CooperatePlanView *cooperatePlanController = [[CooperatePlanView alloc] init];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:cooperatePlanController];
+    [self.navigationController presentViewController:nav animated:YES completion:nil];
+}
+
+#pragma mark 照片管理
+- (IBAction)photosManage:(id)sender {
+    //照片管理
+    PhotoBrowseController *photoBrowseController = [[PhotoBrowseController alloc] init];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:photoBrowseController];
+    [self.navigationController presentViewController:nav animated:YES completion:nil];
+}
+
+#pragma mark 统计
+- (IBAction)statistics:(id)sender {
+    [LogUtils Log:TAG content:@"统计"];
+}
+
+#pragma mark 排行榜
+- (IBAction)ranking:(id)sender {
+    [LogUtils Log:TAG content:@"排行榜"];
+}
+
+#pragma mark 照片样例
+- (IBAction)photoSample:(id)sender {
+    [LogUtils Log:TAG content:@"照片样例"];
+}
+
+#pragma mark 上传坐标
+- (IBAction)uploadCoordinate:(id)sender {
+    [LogUtils Log:TAG content:@"上传坐标"];
+}
+
+#pragma mark 通告
+- (IBAction)announce:(id)sender {
+    [LogUtils Log:TAG content:@"通告"];
+}
+
+#pragma mark 摇一摇
+- (IBAction)shake:(id)sender {
+    [LogUtils Log:TAG content:@"摇一摇"];
+}
+
+#pragma mark -
+/**
+ *  获取app可更新数据的数量
+ */
+- (void) getUpdatableNum {
+    NSURL *url = [NSURL URLWithString:TOTAL_RECEIVE];
+    BaseAjaxHttpRequest *request = [BaseAjaxHttpRequest requestWithURL:url];
+    SingleProjectManager *singleProjectManager = [[SingleProjectManager alloc] initWithDb:db];
+    NSString *timeStamp = [singleProjectManager getLatestUpdateDate:[AppConfigure objectForKey:USERID]];
+    [LogUtils Log:@"update timestamp" content:timeStamp];
+    //对用户名进行编码
+    NSString *uname = [AppConfigure objectForKey:USERNAME];
+    NSDictionary *params = @{@"USERNAME":[uname gtm_stringByEscapingForURLArgument],
+                             @"UPDATE_TIMESTAMP":timeStamp,
+                             @"CHECK_TYPE":@"4"};
+    [request setPostBody:params];
+    __weak BaseAjaxHttpRequest *weakRequest = request;
+    [request setCompletionBlock:^{
+        NSError *err;
+        
+        NSString *responseString = [weakRequest responseString];
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"responseString = %@", responseString]];
+        if ([responseString myContainsString:SESSION_TIMEOUT]) {
+            [self sessionTimeout];
+        } else {
+            NSDictionary *dic = [NSJSONSerialization JSONObjectWithData:[weakRequest responseData] options:kNilOptions error:&err];
+            updateTotalNum = ((NSNumber *)[dic objectForKey:@"totalNum"]).intValue;
+            [LogUtils Log:@"updateTotalNum--->" content:[NSString stringWithFormat:@"%f",updateTotalNum]];
+            if(updateTotalNum > 0) {
+                [self updateMobileData:params];
+                //初始化进度框和弹出框
+                progress = [[LoadingProgress alloc] initWithFrame:CGRectMake(0, 0, UI_SCREEN_WIDTH - 40, 80)];
+                [progress showState:DOWNLOADING];
+                progressAlert = [[CustomIOS7AlertView alloc] init];
+                progressAlert.containerView = progress;
+                [progressAlert show];
+            } else {
+                //更新显示巡检，上传等的数量
+                [self updateUINums];
+            }
+        }
+    }];
+    [request setFailedBlock:^{
+        
+        NSString *responseString = [weakRequest responseString];
+        [LogUtils Log:@"update num" content:responseString];
+        
+        //获取更新数量失败处理
+        [SVProgressHUD showErrorWithStatus:@"无法访问服务或网络"];
+        if(!progressAlert.isHidden) {
+            [progressAlert close];
+        }
+        [self updateUINums];
+    }];
+    [request startAsynchronous];
+}
+
+/**
+ *  迭代从服务器下载更新数据
+ *
+ *  @param params
+ */
+- (void) updateMobileData : (NSDictionary *) params {
+    //获取更新数据
+    NSURL *url = [NSURL URLWithString:MOBILE_RECEIVE];
+    BaseAjaxHttpRequest *request = [BaseAjaxHttpRequest requestWithURL:url];
+    request.shouldWaitToInflateCompressedResponses = NO;
+    request.delegate = self;
+    [request setPostBody:params];
+    [request startAsynchronous];
+    
+    //创建文件写入流，将数据保存至本地document目录的txt文件下面
+    updateFilePath = [DocumentsDirectory stringByAppendingString:[NSString stringWithFormat:@"/%f.txt",[NSDate date].timeIntervalSinceNow]];
+    outputStream = [[NSOutputStream alloc] initToFileAtPath:updateFilePath append:YES];
+    [outputStream open];
+}
+
+/**
+ *  获取插入数据库的操作类
+ *
+ *  @param name 
+ *
+ *  @return
+ */
+- (id<IGsonDataSaver>) getDataManager : (NSString *) name {
+    id<IGsonDataSaver> dbManager;
+    if([name isEqualToString:@"singleList"]) {
+        dbManager = [[SingleProjectManager alloc] init];
+    } else if([name isEqualToString:@"deptList"]) {
+        dbManager = [[DeptManager alloc] init];
+    } else if([name isEqualToString:@"selectionList"]) {
+        dbManager = [[SectionManager alloc] init];
+    } else if([name isEqualToString:@"excludeTemplateList"]) {
+        dbManager = [[TemplateManager alloc] init];
+    } else if([name isEqualToString:@"checkProjectList"]) {
+        dbManager = [[CheckManager alloc] init];
+    } else if([name isEqualToString:@"problemList"] || [name isEqualToString:@"problemDelayList"]) {
+        dbManager = [[ProblemManager alloc] init];
+    } else if([name isEqualToString:@"cooperateList"]) {
+        dbManager = [[CooperateManager alloc] init];
+    } else {
+        return nil;
+    }
+    return dbManager;
+}
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+#pragma mark - download progress delegate write data to file
+- (void) request:(ASIHTTPRequest *)request didReceiveData:(NSData *)data {
+    
+    NSInteger       dataLength;
+    const uint8_t * dataBytes;
+    NSInteger       bytesWritten;
+    NSInteger       bytesWrittenSoFar;
+    
+    // 接收到的数据长度
+    dataLength = [data length];
+    dataBytes  = [data bytes];
+    
+    bytesWrittenSoFar = 0;
+    do {
+        bytesWritten = [outputStream write:&dataBytes[bytesWrittenSoFar] maxLength:dataLength - bytesWrittenSoFar];
+        //assert(bytesWritten != 0);
+        if (bytesWritten == -1) {
+            break;
+        } else {
+            bytesWrittenSoFar += bytesWritten;
+        }
+    } while (bytesWrittenSoFar != dataLength);
+    
+    currentReadPosition += dataLength;
+    progress.label.text = [NSString stringWithFormat:@"已下载%0.0fk",currentReadPosition / 1024];
+}
+
+//download finished
+- (void)requestFinished:(ASIHTTPRequest *)request {
+    [outputStream close];
+    if(updateTotalNum > SHOW_DLG_VALUE) {
+        [progress showState:INSERTING];
+    } else {
+        [progressAlert close];
+    }
+    
+    //读取文件并解析
+    NSError *err;
+    NSData *data = [NSData dataWithContentsOfFile:updateFilePath options:kNilOptions error:&err];
+    NSDictionary *dic = [NSJSONSerialization JSONObjectWithData:data options:kNilOptions error:&err];
+    if(!err) {
+        
+        //更新时间戳
+        NSString *update = [dic objectForKey:@"UPDATE_TIMESTAMP"];
+        [AppConfigure setObject:update ForKey:UPDATE_TIMESTAMP];
+        //获取用户策略
+        NSString *stategy = [dic objectForKey:@"Strategy"];
+        [AppConfigure setObject:stategy ForKey:Strategy];
+        //合作方出工日期
+        NSString *work_date = [dic objectForKey:@"WORK_DATE"];
+        [AppConfigure setObject:work_date ForKey:WORK_DATE];
+                
+        Global(^{
+            FMDatabaseQueue *queue = [BaseFunction createDBQueue];
+            [queue inTransaction:^(FMDatabase *db1, BOOL *rollback) {
+                [db1 setShouldCacheStatements:YES];
+                int insertedCount = 0;
+                for(NSString *keys in dic) {
+                    if([keys myContainsString:@"List"]) {
+                        id<IGsonDataSaver> dbManager = [self getDataManager:keys];
+                        ClientDBManager *manager = (ClientDBManager *) dbManager;
+                        [manager sharedDatabase:db1];
+                        NSString *userid = [AppConfigure objectForKey:USERID];
+                        NSArray *array = [dic objectForKey:keys];
+                        if(array.count > 0) {
+                            for(NSInteger i = 0;i < array.count;i++) {
+                                NSDictionary *oneRecord = [array objectAtIndex:i];
+                                if([dbManager insertOneRecord:oneRecord userid:userid]) {
+                                    insertedCount ++;
+                                    [self updateInsertDataProcess:insertedCount];
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                NSString *userid = [AppConfigure objectForKey:USERID];
+                //需上传图片的数量
+                PhotoManager *photoManager = [[PhotoManager alloc] init];
+                [photoManager sharedDatabase:db1];
+                NSString *photoCounts =[photoManager getUploadPhotoCounts:userid];
+                
+                //巡检数量更新
+                SingleProjectManager *singleProjectManager = [[SingleProjectManager alloc] init];
+                [singleProjectManager sharedDatabase:db1];
+                NSString *siteCount = [singleProjectManager getTotalSiteCount:userid];
+                
+                //整改和抽查
+                NSString *taskCount = [singleProjectManager getTaskNum:userid];
+                
+                //出工计划
+                CooperateManager *cooperateManager = [[CooperateManager alloc] init];
+                [cooperateManager sharedDatabase:db1];
+                NSString *cooperateCount = [cooperateManager getTaskNum:[AppConfigure objectForKey:WORK_DATE] userid:userid];
+                Main(^{
+                    [self updateUINums:photoCounts siteCount:siteCount taskCount:taskCount cooperateCount:cooperateCount];
+                });
+            }];
+            [queue close];
+        });
+        
+        NSString *neednext = [dic objectForKey:@"neednext"];
+        if(![neednext isEqualToString:@"false"]) {
+            //继续迭代请求
+            SingleProjectManager *singleProjectManager = [[SingleProjectManager alloc] initWithDb:db];
+            NSString *timeStamp = [singleProjectManager getLatestUpdateDate:[AppConfigure objectForKey:USERID]];
+            NSDictionary *params = @{@"USERNAME":[AppConfigure objectForKey:USERNAME],
+                                     @"UPDATE_TIMESTAMP":timeStamp,
+                                     @"CHECK_TYPE":@"4"};
+            [self updateMobileData:params];
+        }
+        
+    } else {
+        //文件json解析出现异常
+        [SVProgressHUD showErrorWithStatus:@"系统更新失败"];
+        if(!progressAlert.isHidden) {
+            [progressAlert close];
+        }
+        
+    }
+    
+    //delete updateFilePath
+    NSFileManager *manager = [NSFileManager defaultManager];
+    [manager removeItemAtPath:updateFilePath error:nil];
+}
+
+-(void) requestFailed:(ASIHTTPRequest *)request {
+    [SVProgressHUD showErrorWithStatus:@"系统更新失败"];
+    if(!progressAlert.isHidden) {
+        [progressAlert close];
+    }
+}
+
+//根据已经插入的数据量，更新ui
+- (void) updateInsertDataProcess : (int) insertedCount {
+    Main((^{
+        if(insertedCount == updateTotalNum && !progressAlert.isHidden) {
+            [progressAlert close];
+            [SVProgressHUD showSuccessWithStatus:@"更新完成"];
+        } else {
+            if(insertedCount % 100 == 0) {
+                //ui线程更新progress进度
+                progress.progressBar.progress = (insertedCount / updateTotalNum);
+                //下载数量
+                progress.detailPercent.text = [NSString stringWithFormat:@"%d/%0.0f",insertedCount,updateTotalNum];
+                //下载百分比
+                progress.percent.text = [NSString stringWithFormat:@"%0.0f%%",insertedCount * 100 / updateTotalNum];
+            }
+        }
+    }));
+}
+
+//更新首页数字显示
+- (void) updateUINums {
+    //更新显示巡检，上传等的数量
+    NSString *userid = [AppConfigure objectForKey:USERID];
+    //需上传图片的数量
+    PhotoManager *photoManager = [[PhotoManager alloc] init];
+    [photoManager sharedDatabase:db];
+    NSString *photoCounts =[photoManager getUploadPhotoCounts:userid];
+    
+    //巡检数量更新
+    SingleProjectManager *singleProjectManager = [[SingleProjectManager alloc] init];
+    [singleProjectManager sharedDatabase:db];
+    NSString *siteCount = [singleProjectManager getTotalSiteCount:userid];
+    //整改和抽查
+    NSString *taskCount = [singleProjectManager getTaskNum:userid];
+    //出工计划
+    CooperateManager *cooperateManager = [[CooperateManager alloc] init];
+    [cooperateManager sharedDatabase:db];
+    NSString *cooperateCount = [cooperateManager getTaskNum:[AppConfigure objectForKey:WORK_DATE] userid:userid];
+    [self updateUINums:photoCounts siteCount:siteCount taskCount:taskCount cooperateCount:cooperateCount];
+}
+
+//更新上传的数量
+- (void) updateUINums : (NSString *) photoCounts siteCount : (NSString *) siteCount taskCount : (NSString *) taskCount cooperateCount : (NSString *) cooperateCount{
+    _uploadNum.text = [NSString stringWithFormat:@"上传(%@)",photoCounts];
+    _pollingNum.text = [NSString stringWithFormat:@"巡检(%@)",siteCount];
+    _rectificationNum.text = [NSString stringWithFormat:@"整改(%@)",taskCount];
+    _spotTestNum.text = [NSString stringWithFormat:@"抽查(%@)",taskCount];
+    if (IsStringEmpty(cooperateCount) || [@"(null)" isEqualToString:cooperateCount]) {
+        cooperateCount = @"0";
+    }
+    _planNum.text = [NSString stringWithFormat:@"出工计划(%@)",cooperateCount];
+}
+
+#pragma mark - 重新登录
+// 登录成功
+- (void)loginSuccess {
+    [self getUpdatableNum];
+}
+
+// 登录失败
+- (void)loginFailed {
+
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [db close];
+}
+
+@end

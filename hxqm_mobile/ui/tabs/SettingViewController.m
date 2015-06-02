@@ -1,0 +1,184 @@
+//
+//  SettingViewController.m
+//  hxqm_mobile
+//
+//  Created by HelloWorld on 1/14/15.
+//  Copyright (c) 2015 huaxin. All rights reserved.
+//
+
+#import "SettingViewController.h"
+#import "MyMacros.h"
+#import "AboutViewController.h"
+#import "Constants.h"
+#import "AppConfigure.h"
+#import "SVProgressHUD.h"
+#import "RabishViewController.h"
+#import "LogUtils.h"
+
+//为提示框设置tag,以便区分登出和更新对话框
+#define LOGINOUT_TAG 0
+#define UPDATE_TAG 1
+#define TAG @"SettingViewController"
+
+@interface SettingViewController () {
+    BOOL isChecking;
+}
+
+@property (weak, nonatomic) IBOutlet UIControl *checkUpdate;
+@property (weak, nonatomic) IBOutlet UIControl *cleanCache;
+@property (weak, nonatomic) IBOutlet UIControl *aboutUs;
+@property (weak, nonatomic) IBOutlet UIButton *logOutBtn;
+
+@end
+
+@implementation SettingViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // 设置标题栏文字
+    self.navigationItem.title = @"设置";
+    // 设置标题文字的样式
+    [[UINavigationBar appearance] setTintColor:[UIColor whiteColor]];
+    // 设置按钮的样式
+    _logOutBtn.layer.masksToBounds = YES;
+    _logOutBtn.layer.cornerRadius = 5.0f;
+}
+
+#pragma mark -
+- (IBAction)checkingUpdate:(id)sender {
+    NSLog(@"检查更新");
+    if (!isChecking) {
+        NSLog(@"Checking...");
+        isChecking = YES;
+        [SVProgressHUD showWithStatus:@"检查更新中..."];
+        NSURL *url = [NSURL URLWithString:CHECK_UPDATE];
+        BaseAjaxHttpRequest *request = [BaseAjaxHttpRequest requestWithURL:url];
+        NSDictionary *infoDictionary = [[NSBundle mainBundle] infoDictionary];
+        NSString *currentSoftVer = [infoDictionary objectForKey:@"CFBundleVersion"];
+        
+        NSInteger areaCode = [AppConfigure integerForKey:AREA_CODE];
+        NSInteger majorCode = [AppConfigure integerForKey:MAJOR_CODE];
+        NSInteger templateCode = [AppConfigure integerForKey:TEMPLATE_CODE];
+        NSInteger examBasisIndexCode = [AppConfigure integerForKey:EXAM_BASIS_INDEX_CODE];
+        NSDictionary *dic = @{VER_CODE:currentSoftVer,
+                              AREA_CODE:[NSString stringWithFormat:@"%ld",areaCode],
+                              MAJOR_CODE:[NSString stringWithFormat:@"%ld",majorCode],
+                              TEMPLATE_CODE:[NSString stringWithFormat:@"%ld",templateCode],
+                              EXAM_BASIS_INDEX_CODE:[NSString stringWithFormat:@"%ld",examBasisIndexCode],
+                              @"USER-AGENT":@"IPHONE"};
+        [request setPostBody:dic];
+        request.delegate = self;
+        [request startAsynchronous];
+    }
+}
+
+- (IBAction)cleaningCache:(id)sender {
+    NSLog(@"清除数据");
+    RabishViewController *rabish = [[RabishViewController alloc] initWithNibName:@"RabishViewController" bundle:nil];
+    UINavigationController *controller = [[UINavigationController alloc] initWithRootViewController:rabish];
+    [self.navigationController presentViewController:controller animated:YES completion:nil];
+}
+
+- (IBAction)about:(id)sender {
+    UIViewController *aboutViewController = [[AboutViewController alloc] initWithNibName:@"AboutViewController" bundle:nil];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:aboutViewController];
+    [self.navigationController presentViewController:nav animated:YES completion:nil];
+}
+
+- (IBAction)logout:(id)sender {
+    NSLog(@"注销");
+    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"提醒" message:@"您确定要登出吗？" delegate:self cancelButtonTitle:@"取消" otherButtonTitles:@"确定", nil];
+    [alert setTag:LOGINOUT_TAG];
+    [alert show];
+}
+
+#pragma mark - check update http delegate
+- (void) requestFinished:(ASIHTTPRequest *)request {
+    isChecking = NO;
+    Global((^{
+        //解析数据
+        NSString *result = [request responseString];
+        NSError *err;
+        NSDictionary *dic = [NSJSONSerialization JSONObjectWithData:[result dataUsingEncoding:NSUTF8StringEncoding] options:kNilOptions error:&err];
+        
+        //提示更新下载
+        Main(^{
+            [SVProgressHUD dismiss];
+            if([dic.allKeys containsObject:@"AREA_VER"]) {
+                NSNumber *areaCode = [dic objectForKey:@"AREA_VER"];
+                [AppConfigure setInteger:areaCode.integerValue forKey:AREA_CODE];
+            }
+            if([dic.allKeys containsObject:@"MAJOR_VER"]) {
+                NSNumber *majorCode = [dic objectForKey:@"MAJOR_VER"];
+                [AppConfigure setInteger:majorCode.integerValue forKey:MAJOR_CODE];
+            }
+            if([dic.allKeys containsObject:@"TEMPLATE_VER"]) {
+                NSNumber *majorCode = [dic objectForKey:@"TEMPLATE_VER"];
+                [AppConfigure setInteger:majorCode.integerValue forKey:TEMPLATE_CODE];
+            }
+            if([dic.allKeys containsObject:@"EXAM_BASIS_INDEX_VER"]) {
+                NSNumber *majorCode = [dic objectForKey:@"EXAM_BASIS_INDEX_VER"];
+                [AppConfigure setInteger:majorCode.integerValue forKey:EXAM_BASIS_INDEX_CODE];
+            }
+            NSNumber *vercode = [dic objectForKey:@"VER_CODE"];
+            NSDictionary *infoDictionary = [[NSBundle mainBundle] infoDictionary];
+            NSString *currentSoftVer = [infoDictionary objectForKey:@"CFBundleVersion"];
+            NSString *currentSoftVerName = [infoDictionary objectForKey:@"CFBundleShortVersionString"];
+            if(vercode.intValue > currentSoftVer.intValue) {
+                NSString *verName = [dic objectForKey:@"VER_NAME"];
+                NSString *verDetail = [dic objectForKey:@"VER_DETAIL"];
+                [self showUpdateAlertView:currentSoftVerName newVerName:verName verDetail:verDetail];
+            } else {
+                [SVProgressHUD showSuccessWithStatus:@"已是最新版本"];
+            }
+        });
+    }));
+}
+
+- (void) requestFailed:(ASIHTTPRequest *)request {
+    [SVProgressHUD showErrorWithStatus:@"网络异常"];
+    isChecking = NO;
+}
+
+#pragma mark 显示更新提示框
+- (void) showUpdateAlertView :(NSString *)olderVer newVerName:(NSString *) newVerName verDetail : (NSString *) verDetail {
+    NSString *title = [NSString stringWithFormat:@"本次更新将从版本%@更新到%@",olderVer,newVerName];
+    UIAlertView *updateAlert = [[UIAlertView alloc] initWithTitle:title message:verDetail delegate:self cancelButtonTitle:@"取消" otherButtonTitles:@"下载", nil];
+    [updateAlert setTag:UPDATE_TAG];
+    [updateAlert show];
+}
+
+#pragma mark - update alertview delegate
+- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex {
+    if(alertView.tag == LOGINOUT_TAG) {
+        if(buttonIndex == 1) {
+            [AppConfigure loginOut];
+            [self.tabBarController dismissViewControllerAnimated:NO completion:nil];
+            //通知首页用户已登出
+            [_delegate loginOut];
+        }
+    } else {
+        if(buttonIndex == 1) {
+            //打开网页下载
+            [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UPDATE_IPA_URL]];
+        }
+    }
+}
+
+#pragma mark -
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+/*
+#pragma mark - Navigation
+
+// In a storyboard-based application, you will often want to do a little preparation before navigation
+- (void)prepareForSegue:(UIStoryboardSegue *)segue sender:(id)sender {
+    // Get the new view controller using [segue destinationViewController].
+    // Pass the selected object to the new view controller.
+}
+*/
+
+@end

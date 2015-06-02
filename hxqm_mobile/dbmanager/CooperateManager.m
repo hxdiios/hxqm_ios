@@ -1,0 +1,257 @@
+//
+//  CooperateManager.m
+//  hxqm_mobile
+//
+//  Created by HelloWorld on 1/15/15.
+//  Copyright (c) 2015 huaxin. All rights reserved.
+//
+
+#import "CooperateManager.h"
+
+#define TAG @"CooperateManager"
+
+@implementation CooperateManager
+
+- (NSString *) test {
+    return @"CooperateManager";
+}
+
+/**
+ * 获取代办列表
+ *
+ * @return sites
+ */
+- (NSMutableArray *)getTaskList:(NSString *)workDate orgName:(NSString *)orgName areaName:(NSString *)areaName userid:(NSString *)userid {
+    NSArray *params;
+    NSString *condition = @"";
+    if (IsStringNotEmpty(orgName) && ![orgName isEqualToString:@"全部"]) {
+        params = [NSArray arrayWithObjects:userid, workDate, orgName, nil];
+        condition = @" AND CON_ORG_NAME = ?";
+    } else if (IsStringNotEmpty(areaName) && ![areaName isEqualToString:@"全部"]) {
+        params = [NSArray arrayWithObjects:userid, workDate, areaName, nil];
+        condition = @" AND AREA_NAME = ?";
+    } else {
+        params = [NSArray arrayWithObjects:userid, workDate, nil];
+    }
+    
+    NSArray *sqlArray = @[@"SELECT BO_COOPERATE_ID,              ",
+                          @"          BO_SINGLE_PROJECT_ID,      ",
+                          @"          PROJECT_NAME,              ",
+                          @"          CON_ORG_ID CON_ORG_NAME,   ",
+                          @"          CON_START_TIME,            ",
+                          @"          CON_END_TIME,              ",
+                          @"          JL_BACK_USER,              ",
+                          @"          CREATE_USER,               ",
+                          @"          WORK_DATE,			     ",
+                          @"          AUDIT_STATES,              ",
+                          @"			 STATES				     ",
+                          @" FROM BO_COOPERATE T                 ",
+                          @"   WHERE T.USERID = ?                ",
+                          @"   AND  T.WORK_DATE = ?              ",
+                          condition];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString *apart in sqlArray) {
+        [sql appendString:apart];
+    }
+    
+    return [self getListBySql:sql params:params];
+}
+
+/**
+ * 获取数量
+ *
+ * @return count
+ */
+- (NSString *)getTaskNum:(NSString *)workDate userid:(NSString *)userid {
+    NSArray *params = [NSArray arrayWithObjects:userid, workDate, nil];
+    NSString *sql = @"SELECT COUNT(1) COUNTS FROM BO_COOPERATE T WHERE T.USERID = ? AND  T.WORK_DATE = ?";
+    NSString *count = [self getStringBySql:sql params:params key:@"COUNTS"];
+    
+    return count;
+}
+
+/**
+ * 批量保存
+ *
+ * @param sites
+ */
+- (void)saveCooperate:(NSArray *)list {
+    [LogUtils Log:TAG content:@"出工计划插入开始"];
+    for (NSDictionary *cooperate in list) {
+        [self insertCooperate:cooperate];
+    }
+    [LogUtils Log:TAG content:@"出工计划插入结束"];
+}
+
+/**
+ * 插入执行sql
+ *
+ * @param cooperateList
+ */
+- (void)insertCooperate:(NSDictionary *)cooperate {
+    [self insertCooperate:cooperate];
+}
+
+/**
+ * 根据合作id获得明细
+ *
+ * @param cooperateId
+ * @return map
+ */
+- (NSDictionary *)getUserBaseInfo:(NSString *)cooperateId userid:(NSString *)userid {
+    NSString *sql = @"SELECT C.*,T.MAJOR_NAME FROM BO_COOPERATE C,BO_SINGLE_PROJECT T WHERE C.BO_SINGLE_PROJECT_ID = T.BO_SINGLE_PROJECT_ID AND C.BO_COOPERATE_ID = ? AND C.USERID = ? AND T.USERID = ?";
+    NSArray *params = [NSArray arrayWithObjects:cooperateId, userid, userid, nil];
+    
+    return [self getMapBySql:sql params:params];
+}
+
+/**
+ * 更新状态
+ *
+ * @param id
+ */
+- (void)updateCooperate:(NSString *)sid state:(NSString *)state {
+    NSArray *params = [NSArray arrayWithObjects:state, sid, nil];
+    NSString *sql  = @"UPDATE BO_COOPERATE  SET STATES = ? WHERE  BO_COOPERATE_ID = ? ";
+    [self executeSql:sql params:params];
+}
+
+/**
+ * 获取出工计划项目信息
+ *
+ * @param id
+ */
+- (NSDictionary *)getProjectInfoByCooperateId:(NSString *)sid {
+    NSArray *params = [NSArray arrayWithObjects:sid, nil];
+    NSArray *sqlArray = @[@" SELECT SP.BO_SINGLE_PROJECT_ID,",
+                          @" 		SP.PROJECT_NAME,",
+                          @" 		SP.BO_TEMPLATE_ID,",
+                          @" 		SP.BO_TEMPLATE_VER_ID,",
+                          @" 		SP.MAJOR_NAME,",
+                          @" 		SP.MAJOR_ID",
+                          @" FROM BO_SINGLE_PROJECT SP, BO_COOPERATE C ",
+                          @" WHERE SP.BO_SINGLE_PROJECT_ID = C.BO_SINGLE_PROJECT_ID",
+                          @" AND C.BO_COOPERATE_ID= ?"];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString *apart in sqlArray) {
+        [sql appendString:apart];
+    }
+    
+    return [self getMapBySql:sql params:params];
+}
+
+/**
+ * 获得出工计划施工单位
+ *
+ * @param workDate
+ * @return list
+ */
+- (NSMutableArray *)getCooperateOrgList:(NSString *)workDate userid:(NSString *)userid {
+    NSArray *params = @[userid, workDate];
+    NSArray *sqlArray = @[@"SELECT '全部' SEARCH_NAME, -1 NUM FROM BO_COOPERATE UNION ",
+                          @"SELECT CON_ORG_ID SEARCH_NAME,   ",
+                          @"          COUNT(1) NUM  ",
+                          @" FROM BO_COOPERATE T    ",
+                          @"   WHERE T.USERID = ?   ",
+                          @"   AND T.WORK_DATE = ?  ",
+                          @" GROUP BY CON_ORG_ID    "];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString *apart in sqlArray) {
+        [sql appendString:apart];
+    }
+    
+    return [self getListBySql:sql params:params];
+}
+
+/**
+ * 获得出工计划地区
+ *
+ * @param workDate
+ * @return list
+ */
+- (NSMutableArray *)getCooperateAreaList:(NSString *)workDate userid:(NSString *)userid {
+    NSArray *params = @[userid, workDate];
+    NSArray *sqlArray = @[@"SELECT '全部' SEARCH_NAME, -1 NUM FROM BO_COOPERATE UNION ",
+                          @"SELECT AREA_NAME SEARCH_NAME,    ",
+                          @"          COUNT(1) NUM  ",
+                          @" FROM BO_COOPERATE T    ",
+                          @"   WHERE T.USERID = ?   ",
+                          @"   AND T.WORK_DATE = ?  ",
+                          @" GROUP BY AREA_NAME     "];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString *apart in sqlArray) {
+        [sql appendString:apart];
+    }
+    
+    return [self getListBySql:sql params:params];
+}
+
+- (BOOL)insertOneRecord:(NSDictionary *)jsonDictionary userid:(NSString *)userid {
+    NSArray *sqlArray = @[@"  REPLACE INTO BO_COOPERATE",
+                          @"    (BO_COOPERATE_ID,",
+                          @"     BO_SINGLE_PROJECT_ID,",
+                          @"     PROJECT_NAME,",
+                          @"     CON_ORG_ID,",
+                          @"     CONTENT,",
+                          @"     NEED_MANAGER,",
+                          @"     CON_START_TIME,",
+                          @"     CON_END_TIME,",
+                          @"     YB_START_TIME,",
+                          @"     YB_END_TIME,",
+                          @"     RES_USERNAME,",
+                          @"     CAPTAIN,",
+                          @"     CON_TEL,",
+                          @"     WORK_DATE,",
+                          @"     REMARKS,",
+                          @"     ORG_INPLACE,",
+                          @"     ORG_PLAN_WORK,",
+                          @"     ORG_WORK_BACK,",
+                          @"     CREATE_USER,",
+                          @"     JL_BACK_USER,",
+                          @"     STATES,",
+                          @"     CON_POSITION,",
+                          @"     USERID,",
+                          @"     AUDIT_STATES,",
+                          @"     AREA_NAME,",
+                          @"     CON_UPDATE_DATE,",
+                          @"     DOMAIN_ID)",
+                          @"  VALUES",
+                          @"     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString *apart in sqlArray) {
+        [sql appendString:apart];
+    }
+    
+    NSArray *params = [[NSArray alloc] initWithObjects:
+                       [jsonDictionary objectForKey:@"BO_COOPERATE_ID"],
+                       [jsonDictionary objectForKey:@"BO_SINGLE_PROJECT_ID"],
+                       [jsonDictionary objectForKey:@"PROJECT_NAME"],
+                       [jsonDictionary objectForKey:@"CON_ORG_NAME"] == nil ? @"": [jsonDictionary objectForKey:@"CON_ORG_NAME"],
+                       [jsonDictionary objectForKey:@"CONTENT"],
+                       [jsonDictionary objectForKey:@"NEED_MANAGER"],
+                       [jsonDictionary objectForKey:@"CON_START_TIME"],
+                       [jsonDictionary objectForKey:@"CON_END_TIME"],
+                       [jsonDictionary objectForKey:@"YB_START_TIME"],
+                       [jsonDictionary objectForKey:@"YB_END_TIME"],
+                       [jsonDictionary objectForKey:@"RES_USERNAME"],
+                       [jsonDictionary objectForKey:@"CAPTAIN"],
+                       [jsonDictionary objectForKey:@"CON_TEL"],
+                       [jsonDictionary objectForKey:@"WORK_DATE"],
+                       [jsonDictionary objectForKey:@"REMARKS"],
+                       [jsonDictionary objectForKey:@"ORG_INPLACE"],
+                       [jsonDictionary objectForKey:@"ORG_PLAN_WORK"],
+                       [jsonDictionary objectForKey:@"ORG_WORK_BACK"],
+                       [jsonDictionary objectForKey:@"CREATE_USER"],
+                       [jsonDictionary objectForKey:@"JL_BACK_USER"],
+                       [jsonDictionary objectForKey:@"STATES"],
+                       [jsonDictionary objectForKey:@"CON_POSITION"],
+                       userid,
+                       [jsonDictionary objectForKey:@"AUDIT_STATE"],
+                       [jsonDictionary objectForKey:@"AREA_NAME"],
+                       [jsonDictionary objectForKey:@"CON_UPDATE_DATE"],
+                       [jsonDictionary objectForKey:@"DOMAIN_ID"], nil];
+    
+    return [self executeUpdate:sql params:params];
+}
+
+@end

@@ -1,0 +1,419 @@
+//
+//  NavigateViewController.m
+//  hxqm_mobile
+//
+//  Created by panqw on 15-4-10.
+//  Copyright (c) 2015年 huaxin. All rights reserved.
+//
+
+#import "NavigateViewController.h"
+#import "MyMacros.h"
+#import "SVProgressHUD.h"
+#import "LoadingProgress.h"
+#import "CustomIOS7AlertView.h"
+#import "EmptyView.h"
+#import "FICDViewController.h"
+#import "LogUtils.h"
+#import "BaseFormDataRequest.h"
+#import "ProjsViewController.h"
+#import "CSLinearLayoutView.h"
+#import "CooperatePlanView.h"
+#import "AppConfigure.h"
+#import "GTMNSString+URLArguments.h"
+
+#define TAG @"_NavigateViewController"
+
+@interface NavigateViewController () {
+    CustomIOS7AlertView *progressAlert;
+    LoadingProgress *progress;
+}
+
+@property (weak, nonatomic) IBOutlet UIScrollView *scrollView;
+
+//上传图片的数量
+@property (strong, nonatomic) UILabel *uploadNum;
+//不在上传状态下显示的view
+@property (strong, nonatomic) UIView *uploadView;
+//在上传状态下显示的view
+@property (strong, nonatomic) UIView *uploadingView;
+//上传图片的进度条
+@property (strong, nonatomic) UIProgressView *uploadingProgress;
+//显示上传到第几张图片和图片的总量
+@property (strong, nonatomic) UILabel *uploadingPicNum;
+//巡检数量
+@property (strong, nonatomic) UILabel *pollingNum;
+//整改数量
+@property (strong, nonatomic) UILabel *rectificationNum;
+//抽查数量
+@property (strong, nonatomic) UILabel *spotTestNum;
+//出工计划数量
+@property (strong, nonatomic) UILabel *planNum;
+//巡检
+@property (strong, nonatomic) UIView *xjView;
+//上传
+@property (strong, nonatomic) UIView *scView;
+//出工计划
+@property (strong, nonatomic) UIView *cgView;
+//整改待办
+@property (strong, nonatomic) UIView *dbView;
+
+@end
+
+@implementation NavigateViewController {
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // Do any additional setup after loading the view from its nib.
+    [super getUpdatableNum];
+}
+
+#pragma mark -
+- (void)viewDidAppear:(BOOL)animated {
+    [super updateUINums];
+}
+
+- (void)initLinearLayoutViewWithArray:(NSMutableArray *)titleArray numArray:(NSMutableArray *)numArray  {
+    //
+    CSLinearLayoutView * linearLayoutView = [[CSLinearLayoutView alloc] initWithFrame:CGRectMake(0, 30, [[UIScreen mainScreen] bounds].size.width, [[UIScreen mainScreen] bounds].size.width+20)];
+    linearLayoutView.orientation = CSLinearLayoutViewOrientationHorizontal;
+    [self.view addSubview:linearLayoutView];
+    CSLinearLayoutView * linearLayoutView1 = [[CSLinearLayoutView alloc] initWithFrame:CGRectMake(0, [[UIScreen mainScreen] bounds].size.width/2 + 50, [[UIScreen mainScreen] bounds].size.width, [[UIScreen mainScreen] bounds].size.width+20)];
+    linearLayoutView1.orientation = CSLinearLayoutViewOrientationHorizontal;
+    [self.view addSubview:linearLayoutView1];
+    for (int i=0; i<titleArray.count; i++) {
+        if(i < 2){
+            UIView * itemView = [self createItemView:titleArray[i] viewNum:numArray[i]];
+            //
+            CSLinearLayoutItem *linearLayerItem = [CSLinearLayoutItem layoutItemForView:itemView];
+            linearLayerItem.padding = CSLinearLayoutMakePadding(10, 5, 5, 5);
+            linearLayerItem.horizontalAlignment = CSLinearLayoutItemVerticalAlignmentCenter;
+            linearLayerItem.fillMode = CSLinearLayoutItemFillModeNormal;
+            [linearLayoutView addItem: linearLayerItem];
+        }else{
+            UIView * itemView1 = [self createItemView:titleArray[i] viewNum:numArray[i]];
+            //
+            CSLinearLayoutItem *linearLayerItem1 = [CSLinearLayoutItem layoutItemForView:itemView1];
+            linearLayerItem1.padding = CSLinearLayoutMakePadding(10, 5, 5, 5);
+            linearLayerItem1.horizontalAlignment = CSLinearLayoutItemVerticalAlignmentCenter;
+            linearLayerItem1.fillMode = CSLinearLayoutItemFillModeNormal;
+            [linearLayoutView1 addItem: linearLayerItem1];
+        }
+        
+    }
+    
+    
+}
+
+- (UIView *)createItemView:(NSString *)title viewNum:(NSString *)num{
+    NSArray *picArray = [[NSArray alloc] initWithObjects:@"hammerit.png",@"sunc_disk.png",@"image_capture.png",@"spellcheck.png", nil];
+    NSString *picPath = @"";
+    if ([title isEqualToString:@"我的工程"]) {
+        picPath = picArray[0];
+    } else if ([title isEqualToString:@"同步更新"]) {
+        picPath = picArray[1];
+    } else if ([title isEqualToString:@"出工计划"]) {
+        picPath = picArray[2];
+    } else if ([title isEqualToString:@"待办任务"]) {
+        picPath = picArray[3];
+    } else {
+        picPath = nil;
+    }
+    if (picPath == nil) {
+        return nil;
+    }
+    //我的工程navigation
+    [self.view setBackgroundColor:[UIColor colorWithRed:70/255.0 green:130/255.0 blue:180/255.0 alpha:1]];
+    UIView *bgView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, [[UIScreen mainScreen] bounds].size.width/2 - 15, [[UIScreen mainScreen] bounds].size.width/2 +5)];
+    [bgView.layer setCornerRadius:8];
+    [bgView.layer setBorderWidth:1];
+    [bgView.layer setBorderColor:[UIColor colorWithRed:53/255.0 green:83/255.0 blue:153/255.0 alpha:1].CGColor];
+    CAGradientLayer *gradient = [CAGradientLayer layer];
+    gradient.frame = bgView.frame;
+    gradient.colors = [NSArray arrayWithObjects:(id)[UIColor colorWithRed:66/255.0 green:97/255.0 blue:185/255.0 alpha:1].CGColor,(id)[UIColor colorWithRed:80/255.0 green:109/255.0 blue:189/255.0 alpha:1].CGColor,(id)[UIColor colorWithRed:93/255.0 green:119/255.0 blue:193/255.0 alpha:1].CGColor, nil];
+    [gradient setCornerRadius:8];
+    [bgView.layer insertSublayer:gradient atIndex:0];
+    UIImage *prjImage = [UIImage imageNamed:picPath];
+    [prjImage drawInRect:CGRectMake(0, 0, [[UIScreen mainScreen] bounds].size.width/3 -10, [[UIScreen mainScreen] bounds].size.width/3 -10)];
+    UIImageView *prjImageView = [[UIImageView alloc] initWithFrame:CGRectMake(0, 0, [[UIScreen mainScreen] bounds].size.width/3 -10, [[UIScreen mainScreen] bounds].size.width/3 -10)];
+    [prjImageView setImage:prjImage];
+    [prjImageView.layer setCornerRadius:8];
+    [prjImageView.layer setBorderWidth:1];
+    [prjImageView.layer setBorderColor:[UIColor colorWithRed:150/255.0 green:150/255.0 blue:150/255.0 alpha:1].CGColor];
+    [prjImageView setBackgroundColor:[UIColor colorWithRed:203/255.0 green:203/255.0 blue:203/255.0 alpha:1]];
+    [bgView addSubview:prjImageView];
+    [prjImageView setCenter:CGPointMake(bgView.center.x, bgView.center.y - (bgView.bounds.size.height/2 - prjImageView.bounds.size.height/2 -bgView.bounds.size.width/2 + prjImageView.bounds.size.width/2))];
+    UILabel *prjTitle = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 0.0, 50, 30)];
+    prjTitle.text = title;
+    prjTitle.textColor = [UIColor whiteColor];
+    prjTitle.font = [UIFont systemFontOfSize:16];
+    prjTitle.textAlignment = NSTextAlignmentCenter;
+    [prjTitle sizeToFit];
+    if ([title isEqualToString:@"我的工程"]) {
+        _xjView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, [[UIScreen mainScreen] bounds].size.width/2 - 15, [[UIScreen mainScreen] bounds].size.width/2 - 15)];
+        [self.view addSubview:_xjView];
+        [_xjView addSubview:bgView];
+        _pollingNum = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 0.0, 50, 30)];
+        [_pollingNum setFont:[UIFont fontWithName:@"Helvetice" size:13.0]];
+        _pollingNum.text = num;
+        _pollingNum.textColor = [UIColor whiteColor];
+        _pollingNum.font = [UIFont systemFontOfSize:11];
+        _pollingNum.textAlignment = NSTextAlignmentCenter;
+        [_pollingNum sizeToFit];
+        [bgView addSubview:prjTitle];
+        [bgView addSubview:_pollingNum];
+        [prjTitle setCenter:CGPointMake(bgView.center.x, prjImageView.center.y+prjImageView.bounds.size.height/2+10)];
+        [_pollingNum setCenter:CGPointMake(bgView.center.x, prjImageView.center.y+prjImageView.bounds.size.height/2+30)];
+        UITapGestureRecognizer *singleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(pollingx:)];
+        [bgView addGestureRecognizer:singleTap];
+        return _xjView;
+    } else if ([title isEqualToString:@"同步更新"]) {
+        _scView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, [[UIScreen mainScreen] bounds].size.width/2 - 15, [[UIScreen mainScreen] bounds].size.width/2 - 15)];
+        [self.view addSubview:_scView];
+        [_scView addSubview:bgView];
+        _uploadNum = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 0.0, 50, 30)];
+        [_uploadNum setFont:[UIFont fontWithName:@"Helvetice" size:13.0]];
+        _uploadNum.text = num;
+        _uploadNum.textColor = [UIColor whiteColor];
+        _uploadNum.font = [UIFont systemFontOfSize:11];
+        _uploadNum.textAlignment = NSTextAlignmentCenter;
+        [_uploadNum sizeToFit];
+        [prjTitle setCenter:CGPointMake(bgView.center.x, prjImageView.center.y+prjImageView.bounds.size.height/2+10)];
+        [_uploadNum setCenter:CGPointMake(bgView.center.x, prjImageView.center.y+prjImageView.bounds.size.height/2+30)];
+        _uploadView = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 0.0, 100, 50)];
+        [_uploadView addSubview:prjTitle];
+        [_uploadView addSubview:_uploadNum];
+        [bgView addSubview:_uploadView];
+        UITapGestureRecognizer *singleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(uploadx:)];
+        [bgView addGestureRecognizer:singleTap];
+        _uploadingView = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 0.0, 50, 30)];
+        _uploadingView.userInteractionEnabled = NO;
+        _uploadingProgress.progressTintColor = [UIColor whiteColor];
+        _uploadingProgress = [[UIProgressView alloc] initWithFrame:CGRectMake(0.0, 0.0, 100, 20)];
+        _uploadingPicNum = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 0.0, 100, 20)];
+        [_uploadingProgress setCenter:CGPointMake(bgView.center.x, prjImageView.center.y+prjImageView.bounds.size.height/2+10)];
+        [_uploadingPicNum setCenter:CGPointMake(bgView.center.x, prjImageView.center.y+prjImageView.bounds.size.height/2+30)];
+        [_uploadingPicNum setFont:[UIFont fontWithName:@"Helvetice" size:5.0]];
+        [_uploadingView addSubview:_uploadingProgress];
+        [_uploadingView addSubview:_uploadingPicNum];
+        [bgView addSubview:_uploadingView];
+        [_uploadingView setHidden:YES];
+        return _scView;
+    } else if ([title isEqualToString:@"出工计划"]) {
+        _cgView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, [[UIScreen mainScreen] bounds].size.width/2 - 15, [[UIScreen mainScreen] bounds].size.width/2 - 15)];
+        [self.view addSubview:_cgView];
+        [_cgView addSubview:bgView];
+        _planNum = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 0.0, 50, 30)];
+        [_planNum setFont:[UIFont fontWithName:@"Helvetice" size:13.0]];
+        _planNum.text = num;
+        _planNum.textColor = [UIColor whiteColor];
+        _planNum.font = [UIFont systemFontOfSize:11];
+        _planNum.textAlignment = NSTextAlignmentCenter;
+        [_planNum sizeToFit];
+        [bgView addSubview:prjTitle];
+        [bgView addSubview:_planNum];
+        [prjTitle setCenter:CGPointMake(bgView.center.x, prjImageView.center.y+prjImageView.bounds.size.height/2+10)];
+        [_planNum setCenter:CGPointMake(bgView.center.x, prjImageView.center.y+prjImageView.bounds.size.height/2+30)];
+        UITapGestureRecognizer *singleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(goToWorkPlanx:)];
+        [bgView addGestureRecognizer:singleTap];
+        return _cgView;
+    } else if ([title isEqualToString:@"待办任务"]) {
+        _dbView = [[UIView alloc] initWithFrame:CGRectMake(0.0, 0.0, [[UIScreen mainScreen] bounds].size.width/2 - 15, [[UIScreen mainScreen] bounds].size.width/2 - 15)];
+        [self.view addSubview:_dbView];
+        [_dbView addSubview:bgView];
+        _spotTestNum = [[UILabel alloc] initWithFrame:CGRectMake(0.0, 0.0, 50, 30)];
+        [_spotTestNum setFont:[UIFont fontWithName:@"Helvetice" size:13.0]];
+        _spotTestNum.text = num;
+        _spotTestNum.textColor = [UIColor whiteColor];
+        _spotTestNum.font = [UIFont systemFontOfSize:11];
+        _spotTestNum.textAlignment = NSTextAlignmentCenter;
+        [_spotTestNum sizeToFit];
+        [bgView addSubview:prjTitle];
+        [bgView addSubview:_spotTestNum];
+        [prjTitle setCenter:CGPointMake(bgView.center.x, prjImageView.center.y+prjImageView.bounds.size.height/2+10)];
+        [_spotTestNum setCenter:CGPointMake(bgView.center.x, prjImageView.center.y+prjImageView.bounds.size.height/2+30)];
+        UITapGestureRecognizer *singleTap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(checkx:)];
+        [bgView addGestureRecognizer:singleTap];
+        return _dbView;
+    }
+    return nil;
+}
+
+- (void) viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
+    //每次进入都需要检查下上传的图片数量是否变化
+    [self updateUploadablePicNum];
+}
+
+#pragma mark 上传
+- (void)uploadx:(UITapGestureRecognizer *)recognizer {
+    [self doUpload:nil];
+}
+
+#pragma mark 巡检
+- (void)pollingx:(UITapGestureRecognizer *)recognizer {
+    [self.tabBarController setSelectedIndex:1];
+}
+
+#pragma mark 整改
+- (void)rectificatex:(UITapGestureRecognizer *)recognizer {
+    [AppConfigure setObject:@"4" ForKey:TASK_SHOW_MODE];
+    [self.tabBarController setSelectedIndex:2];
+}
+
+#pragma mark 抽查
+- (void)checkx:(UITapGestureRecognizer *)recognizer {
+    [AppConfigure setObject:@"3" ForKey:TASK_SHOW_MODE];
+    [self.tabBarController setSelectedIndex:2];
+}
+
+#pragma mark 出工计划
+- (void)goToWorkPlanx:(UITapGestureRecognizer *)recognizer {
+    [LogUtils Log:TAG content:@"出工计划"];
+    CooperatePlanView *cooperatePlanController = [[CooperatePlanView alloc] init];
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:cooperatePlanController];
+    [self presentViewController:nav animated:YES completion:nil];
+}
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+}
+
+#pragma mark - 重新登录
+// 登录成功
+- (void)loginSuccess {
+    [self getUpdatableNum];
+}
+
+// 登录失败
+- (void)loginFailed {
+    
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+}
+
+- (void)initProgressAlert{
+    progress = [[LoadingProgress alloc] initWithFrame:CGRectMake(0, 0, UI_SCREEN_WIDTH - 40, 80)];
+    [progress showState:DOWNLOADING];
+    progressAlert = [[CustomIOS7AlertView alloc] init];
+    progressAlert.containerView = progress;
+    [progressAlert show];
+}
+
+-(void)showFailMsg:(NSString *)string{
+    [super showFailMsg:string];
+    if(!progressAlert.isHidden) {
+        [progressAlert close];
+    }
+}
+//更新上传的数量
+- (void) updateUINums : (NSString *) photoCounts siteCount : (NSString *) siteCount checkCount : (NSString *) checkCount problemReplyCount : (NSString *) problemReplyCount cooperateCount : (NSString *) cooperateCount{
+    //过滤不需要出现的view
+    [self filterModule];
+    //end
+    _uploadNum.text = [NSString stringWithFormat:@"未上传图片:(%@)",photoCounts];
+    _pollingNum.text = [NSString stringWithFormat:@"在建项目:(%@)",siteCount];
+    NSInteger taskCount = (int)checkCount+ (int)problemReplyCount;
+    _spotTestNum.text = [NSString stringWithFormat:@"待办任务:(%ld)",(long)taskCount];
+    
+    if (IsStringEmpty(cooperateCount) || [@"(null)" isEqualToString:cooperateCount]) {
+        cooperateCount = @"0";
+    }
+    _planNum.text = [NSString stringWithFormat:@"出工计划:(%@)",cooperateCount];
+    [_pollingNum sizeToFit];
+}
+
+-(void)showCurrentReadPosition:(float)currentReadPosition{
+    progress.label.text = [NSString stringWithFormat:@"已下载%0.0fk",currentReadPosition / 1024];
+}
+
+-(void)showProgressAlert{
+    [progress showState:INSERTING];
+}
+
+-(void)closeProgressAlert{
+    [progressAlert close];
+}
+
+//过滤不需要出现的模块
+-(void)filterModule{
+    NSMutableArray *titleArray = [NSMutableArray arrayWithCapacity:4];
+    NSMutableArray *numArray = [NSMutableArray arrayWithCapacity:4];
+    NSString *strategy = [AppConfigure objectForKey:Strategy];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"strategy = %@", strategy]];
+    _xjView.hidden=YES;
+    _scView.hidden=YES;
+    _cgView.hidden=YES;
+    _dbView.hidden=YES;
+    if ([strategy myContainsString:SEE_GC]) {
+        _xjView.hidden=NO;
+        [titleArray addObject:@"我的工程"];
+        [numArray addObject:@"在建项目:(0)"];
+    }
+    if ([strategy myContainsString:SEE_UPLOAD]) {
+        _scView.hidden=NO;
+        [titleArray addObject:@"同步更新"];
+        [numArray addObject:@"未上传图片:(0)"];
+    }
+    if ([strategy myContainsString:SEE_SG]) {
+        _cgView.hidden=NO;
+        [titleArray addObject:@"出工计划"];
+        [numArray addObject:@"出工计划:(0)"];
+    }
+    if ([strategy myContainsString:SEE_TASK]) {
+        _dbView.hidden=NO;
+        [titleArray addObject:@"待办任务"];
+        [numArray addObject:@"待办任务:(0)"];
+    }
+    [self initLinearLayoutViewWithArray:titleArray numArray:numArray];
+}
+
+//根据已经插入的数据量，更新ui
+- (void) updateInsertDataProcess : (int) insertedCount updateTotalNum:(float)updateTotalNum {
+    
+    Main((^{
+        if(insertedCount == updateTotalNum && !progressAlert.isHidden) {
+            [progressAlert close];
+            [SVProgressHUD showSuccessWithStatus:@"更新完成"];
+        } else {
+            if(insertedCount % 100 == 0) {
+                //ui线程更新progress进度
+                progress.progressBar.progress = (insertedCount / updateTotalNum);
+                //下载数量
+                progress.detailPercent.text = [NSString stringWithFormat:@"%d/%0.0f",insertedCount,updateTotalNum];
+                //下载百分比
+                progress.percent.text = [NSString stringWithFormat:@"%0.0f%%",insertedCount * 100 / updateTotalNum];
+            }
+        }
+    }));
+}
+
+-(void)shwoUploadablePicNum:(NSString *)photoCounts{
+    _uploadNum.text = [NSString stringWithFormat:@"未上传图片:(%@)",photoCounts];
+}
+
+-(void)setUploadProgressDelegate:(BaseFormDataRequest *)request{
+    [request setUploadProgressDelegate:_uploadingProgress];
+}
+
+/**
+ *  根据当前上传完成的图片序列号更新上传ui的显示
+ *
+ *  @param uploadingIndex 已上传图片的序列号
+ */
+- (void) updateUploadingUI : (NSInteger) uploadingIndex totalCounts:(NSInteger) totalCounts{
+    if(totalCounts == uploadingIndex) {
+        //上传完成
+        _uploadingView.hidden = YES;
+        _uploadView.hidden = NO;
+        _uploadNum.text = @"未上传图片:(0)";
+    } else {
+        //上传中
+        _uploadView.hidden = YES;
+        _uploadingView.hidden = NO;
+        _uploadingPicNum.text = [NSString stringWithFormat:@"(%ld/%ld)",uploadingIndex,totalCounts];
+    }
+}
+@end

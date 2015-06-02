@@ -1,0 +1,236 @@
+//
+//  PhotoManager.h
+//  hxqm_mobile
+//
+//  Created by HelloWorld on 1/15/15.
+//  Copyright (c) 2015 huaxin. All rights reserved.
+//
+
+#import "ClientDBManager.h"
+
+@interface PhotoManager : ClientDBManager
+
+/**
+ * 得到本次总共上传大小，已经上传大小
+ *
+ * @param boSingleProjectId
+ * @return
+ */
+- (NSMutableArray *)getContentListBySingleProjectId:(NSString *)boSingleProjectId boProjectSectionId:(NSString *)boProjectSectionId type:(NSString *)type auth:(NSArray *)auth userid:(NSString *)userid;
+
+/**
+ * 更新照片为已上传
+ *
+ * @param boPhotoId
+ * @param status
+ * @return
+ */
+- (BOOL)updataPhotoUploadStatus:(NSString *)boPhotoId status:(NSString *)status userid:(NSString *)userid;
+
+/**
+ * 得到上传照片列表
+ *
+ * @return
+ */
+- (NSMutableArray *)getCheckUploadPhotoList:(NSMutableDictionary *)inputData userid:(NSString *)userid;
+
+/**
+ * 得到上传照片列表
+ *
+ * @return
+ */
+- (NSMutableArray *)getXjUploadPhotoList:(NSMutableDictionary *)inputData userid:(NSString *)userid;
+
+/**
+ * 得到上传照片总数
+ *
+ * @return
+ */
+- (NSString *)getUploadPhotoCounts:(NSString *)userid;
+
+/**
+ * 得到上传基站数量，表单数量，照片数量
+ *
+ * @return
+ */
+- (NSDictionary *)getUploadMsg:(NSString *)userid;
+
+/**
+ * 更改照片对于的检查照片
+ *
+ * @param photoId
+ */
+- (BOOL)updateChildPhoto:(NSString *)photoId userid:(NSString *)userid;
+
+/**
+ * 更新照片信息
+ */
+- (BOOL)updatePhoto:(NSString *)photoId photoName:(NSString *)photoName path:(NSString *)path date:(NSString *)date fileSize:(long)fileSize longitude:(float)longitude latitude:(float)latitude parentPhtotId:(NSString *)parentPhtotId userid:(NSString *)userid;
+
+/**
+ * 插入照片信息
+ */
+- (BOOL)insertPhoto:(NSString *)boPhotoId photoName:(NSString *)photoName photoPath:(NSString *)photoPath boCriticalPointVerId:(NSString *)boCriticalPointVerId pointName:(NSString *)pointName boSingleProjectId:(NSString *)boSingleProjectId boProjectSelectionId:(NSString *)boProjectSelectionId boContentId:(NSString *)boContentId filePrefix:(NSString *)filePrefix fileSuffix:(NSString *)fileSuffix description:(NSString *)description memo:(NSString *)memo longitude:(NSString *)longitude latitude:(NSString *)latitude createDate:(NSString *)createDate refMineImageId:(NSString *)refMineImageId isFormal:(NSString *)isFormal photoType:(NSString *)photoType isUpload:(NSString *)isUpload photoSize:(NSString *)photoSize serializeNum:(NSString *)serializeNum boProblemId:(NSString *)boProblemId boProblemReplyId:(NSString *)boProblemReplyId userid:(NSString *)userid;
+
+/**
+ * 根据表单 得到每个拍照点照片数量
+ *
+ * @param boFormId
+ * @return
+ */
+- (NSMutableArray *)getPhotoCountList:(NSString *)boContentId userid:(NSString *)userid;
+
+/**
+ * 删除照片信息
+ *
+ * @param boPhotoId
+ * @return
+ */
+- (BOOL)deletePhoto:(NSString *)boPhotoId userid:(NSString *)userid;
+
+/**
+ * 通过控制点ID得到照片列表
+ *
+ * @param boFormId
+ * @return
+ */
+- (NSMutableArray *)getPhotoListByContentId:(NSString *)boContentId;
+
+/**
+ * 根据拍照点Id获取照片列表
+ *
+ * @param boCriticalPointId
+ * @return
+ * @author hubo
+ */
+- (NSMutableArray *)getPhotoListByPointId:(NSString *)boCriticalPointVerId boContentId:(NSString *)boContentId userid:(NSString *)userid;
+
+/**
+ * 通过照片ID得到照片详细信息
+ *
+ * @param boPhotoId
+ * @return
+ */
+- (NSDictionary *)getPhotoInfoById:(NSString *)boPhotoId userid:(NSString *)userid;
+
+/**
+ * 更改照片详细信息
+ *
+ * @param photoId
+ * @param memo
+ * @return
+ */
+- (BOOL)updatePhotoMemo:(NSString *)photoId memo:(NSString *)memo quality:(NSString *)quality isFormal:(NSString *)isFormal photoName:(NSString *)photoName userid:(NSString *)userid;
+
+/**
+ * 更新照片为已涂鸦
+ *
+ * @param boPhotoId
+ *            照片ID
+ * @param isDoodle
+ *            涂鸦状态
+ * @return 是否执行成功
+ */
+- (BOOL)updataPhotoDoodleStatus:(NSString *)boPhotoId status:(NSString *)status userid:(NSString *)userid;
+
+/**
+ * 通过搜索条件得到已上传的照片列表
+ *
+ * @param searchDate
+ *            照片拍摄或下载日期
+ * @param clearContent
+ *            清理内容
+ * @return List 搜索条件得到已上传或已下载的照片列表
+ */
+- (NSMutableArray *)getPhotoBySizeAndDate:(NSString *)searchDate clearContent:(NSString *)clearContent userid:(NSString *)userid;
+
+/**
+ * 获得搜索条件
+ *
+ * @param searchDate
+ *            照片拍摄或下载日期
+ * @param clearContent
+ *            清理内容
+ * @return String 搜索条件
+ */
+- (NSString *)getPhotoCondition:(NSString *)searchDate clearContent:(NSString *)clearContent;
+
+- (void)savePreDownloadPhotos:(NSArray *)jsonArray userid:(NSString *)userid;
+
+/**
+ * 图片预下载
+ *
+ * @return
+ */
+- (BOOL)savePreDownloadPhoto:(NSDictionary *)jso userid:(NSString *)userid;
+
+- (BOOL)existsPhoto:(NSString *)boPhotoId userid:(NSString *)userid;
+
+/**
+ * 路径更新
+ *
+ * @param path
+ * @param boPhotoId
+ * @return
+ */
+- (BOOL)updateImageDir:(NSString *)path boPhotoId:(NSString *)boPhotoId userid:(NSString *)userid;
+
+/**
+ * 大图路径更新
+ *
+ * @param path
+ * @param boPhotoId
+ * @return
+ */
+- (BOOL)updateBigImageDir:(NSString *)path boPhotoId:(NSString *)boPhotoId;
+
+- (void)doDeleteNotExistPhoto:(NSMutableDictionary *)inputData userid:(NSString *)userid;
+
+/**
+ * 是否存在已拍照片
+ *
+ * @param boContentId
+ * @return true or false
+ */
+- (BOOL)isExistsProblemPhotos:(NSString *)boContentId userid:(NSString *)userid;
+
+/**
+ * 更改照片详细信息
+ *
+ * @param photoId
+ * @param memo
+ */
+- (BOOL)updateMemoByPhotoId:(NSString *)photoId memo:(NSString *)memo userid:(NSString *)userid;
+
+/**
+ * 更新控制点ID
+ *
+ * @param oldContentId
+ * @param newContentId
+ * @return
+ */
+- (BOOL)updateContent:(NSString *)oldContentId newContentId:(NSString *)newContentId;
+
+/**
+ * 获取照片列表
+ *
+ * @return
+ */
+- (NSMutableArray *)getPhotoList:(NSString *)userid;
+
+/**
+ * 获得最近一次自拍照片信息
+ *
+ * @return Map
+ */
+- (NSDictionary *)getLastestRefPhoto;
+
+/**
+ * 通过照片ID得到项目信息
+ *
+ * @param boPhotoId
+ * @return
+ */
+- (NSDictionary *)getProjectInfoByPhotoId:(NSString *)boPhotoId userid:(NSString *)userid;
+
+@end

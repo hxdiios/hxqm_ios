@@ -1,0 +1,66 @@
+//
+//  Constants.h
+//  hxqm_mobile
+//
+//  Created by 刘志 on 15/1/16.
+//  Copyright (c) 2015年 huaxin. All rights reserved.
+//
+
+#ifndef hxqm_mobile_Constants_h
+#define hxqm_mobile_Constants_h
+
+//#define BASE_URL @"http://183.129.199.99:19080"
+
+//测试url
+#define BASE_URL @"http://115.29.3.106:8080"// @"http://101.69.225.118:8001"
+
+#define Prefix   @""
+
+//xmpp的连接ip
+#define XMPP_IP @"115.29.3.106"
+
+//xmpp连接端口
+#define XMPP_PORT 81
+
+// 版本号
+#define VERSION_CODE @"1.0.0"
+
+#define SHOW_DLG_VALUE 500
+
+#define SESSION_TIMEOUT @"dwr.engine.http.1000"
+
+#define APPEND_URL(suffix) [BASE_URL stringByAppendingString:suffix]
+
+#define CHECK_UPDATE     APPEND_URL(@"/qm/service/ComMobile/GetMobileBasicData.ajax")
+#define LOGIN            APPEND_URL(@"/j_acegi_security_check")
+#define LOGIN_FULLNAME   APPEND_URL(@"/qm/service/User/GetLoginName.ajax")
+#define TOTAL_RECEIVE    APPEND_URL(@"/qm/service/ComMobile/GetMobileInfoCount.ajax")
+#define MOBILE_RECEIVE   APPEND_URL(@"/qm/service/ComMobile/GetMobileInfo.ajax")
+#define FILEUPLOAD       APPEND_URL(@"/picupload")
+#define LOGUPLOAD        APPEND_URL(@"/fileupload")
+// 工程列表
+#define LATER_RECEIVE    APPEND_URL(@"/qm/service/ComMobile/GetSingleProjectData.ajax")
+// 任务列表
+#define TASK_LIST        APPEND_URL(@"/qm/service/ComMobile/GetTask.ajax")
+// 分段
+#define SAVE_SECTION_URL APPEND_URL(@"/qm/service/PhotoManager/SaveSection.ajax")
+// 关键控制点
+#define CONTENT_RECEIVE  APPEND_URL(@"/qm/service/PhotoManager/GetContentList.ajax")
+// 用户角色
+#define SEE_GC @"SEE_GC"
+#define SEE_UPLOAD @"SEE_UPLOAD"
+#define SEE_SG @"SEE_SG"
+#define SEE_TASK @"SEE_TASK"
+#define AUDIT_COOPERATE @"AUDIT_COOPERATE"
+#define SEE_JC @"SEE_JC"
+
+#define SMALL_PHOTO_SIZE 100
+
+// 照片大图界面跳转MODE
+#define MODE_DETAIL @"1"
+#define MODE_SCAN @"2"
+// 照片压缩比
+#define kCompressionQuality 0.5
+#define kCompressionQualityLow 0.3
+
+#endif

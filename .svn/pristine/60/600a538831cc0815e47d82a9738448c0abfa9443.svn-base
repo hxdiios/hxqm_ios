@@ -1,0 +1,473 @@
+//
+//  TableDetailViewController.m
+//  hxqm_mobile
+//
+//  Created by HelloWorld on 2/27/15.
+//  Copyright (c) 2015 huaxin. All rights reserved.
+//
+
+#import "TableDetailViewController.h"
+#import "LogUtils.h"
+#import "ContentManager.h"
+#import "AppConfigure.h"
+#import "SVProgressHUD.h"
+#import "BaseFunction.h"
+#import "TemplateManager.h"
+#import "Constants.h"
+#import "DetailCell.h"
+#import "EmptyView.h"
+#import "PhotoManager.h"
+#import "SingleProjectManager.h"
+#import "PhotoDetailViewController.h"
+#import "ScheduleViewController.h"
+
+#define TAG @"_TableDetailViewController"
+
+@interface TableDetailViewController ()<DetailDelegate> {
+    NSString *userid;
+    NSMutableDictionary *fullInfoDict;
+    // 保存最近一次定位的时间
+    NSString *lastLocationTime;
+    NSString *GPS_DATE_CURRENT_USERID;
+    BOOL isNotLocationOrTimeOut;
+    // 保存拍照点list
+    NSMutableArray *photoPointerArray;
+    EmptyView *emptyView;
+    float photoItemWidthAndHeight;
+    NSInteger currentTakePhotoRow;
+    NSMutableDictionary *allDetailCells;
+    NSInteger currentClickedTableRow;
+    
+    FMDatabase *db;
+    BOOL dbNeedClosed;
+}
+
+@end
+
+@implementation TableDetailViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    
+    db = [BaseFunction createDB];
+    [db open];
+    dbNeedClosed = NO;
+    // Do any additional setup after loading the view from its nib.
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"_type = %@", _type]];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"_contentID = %@", _contentID]];
+    userid = [AppConfigure objectForKey:USERID];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"userid = %@", userid]];
+    // 获得控制点信息NSDictionary
+    ContentManager *contentManager = [[ContentManager alloc] initWithDb:db];
+    fullInfoDict = [[NSMutableDictionary alloc] initWithDictionary:[contentManager getFullInfoByBoContentId:_contentID userid:userid]];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"fullInfoDict = %@", fullInfoDict]];
+    
+    // 获取最近一次定位的时间
+    GPS_DATE_CURRENT_USERID = [NSString stringWithFormat:@"%@_%@", GPS_DATE, [AppConfigure objectForKey:USERID]];
+    lastLocationTime = [AppConfigure objectForKey:GPS_DATE_CURRENT_USERID];
+    lastLocationTime = lastLocationTime == nil ? @"" : lastLocationTime;
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"lastLocationTime = %@", lastLocationTime]];
+    
+    _table.delegate = self;
+    _table.dataSource = self;
+    _table.tableFooterView = [[UIView alloc] init];
+    
+    // 计算照片item的宽高
+    photoItemWidthAndHeight = (UI_SCREEN_WIDTH - 50) / 4.0f;
+    currentTakePhotoRow = -1;
+    currentClickedTableRow = -1;
+
+    [self addNavBackBtn:@"返回"];
+    
+    allDetailCells = [[NSMutableDictionary alloc] init];
+    
+    [self initViews];
+    [self loadDatas];
+}
+
+- (void)initViews {
+    isNotLocationOrTimeOut = [self getLocationTimeIntervalSinceCurrentDateIsTimeOut];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"isNotLocationOrTimeOut = %@", isNotLocationOrTimeOut ? @"YES" : @"NO"]];
+    NSString *contentType = [fullInfoDict objectForKey:@"content_type"];
+    NSString *totalNum = [fullInfoDict objectForKey:@"bo_total_num"];
+    // 未定位 || Map.get("CONTENT_TYPE").equals("1") || (Map.get("BO_TOTAL_NUM").equals("-1") && Map.get("CONTENT_TYPE").equals("2"))
+    if (isNotLocationOrTimeOut || [@"1" isEqualToString:contentType] || ([@"-1" isEqualToString:totalNum] && [@"2" isEqualToString:contentType])) {
+        // 没有整改按钮
+    } else {
+        // 显示整改按钮
+        UIImage *rectificationImage = [UIImage imageNamed:@"forward.png"];
+        UIBarButtonItem *rectificationItem = [[UIBarButtonItem alloc] initWithImage:rectificationImage style:UIBarButtonItemStylePlain target:self action:@selector(rectification)];
+        rectificationItem.tintColor = [UIColor whiteColor];
+        
+        NSArray *actionButtonItems = @[rectificationItem];
+        self.navigationItem.rightBarButtonItems = actionButtonItems;
+    }
+    
+    NSString *otherType = [fullInfoDict objectForKey:@"other_type"];
+    if ([@"-1" isEqualToString:contentType] || [@"10" isEqualToString:otherType]) {
+        [fullInfoDict setObject:@"2" forKey:@"content_type"];
+        contentType = @"2";
+    }
+    
+    if ([@"2" isEqualToString:contentType] || [@"3" isEqualToString:contentType]) {
+        _detailHint.text = @"请根据情况选择检查点拍照";
+    } else {
+        NSString *hint = @"该分类有如下拍照点(可多次拍摄),带*表示必拍";
+        NSMutableAttributedString *hintString = [[NSMutableAttributedString alloc] initWithString:hint];
+        NSRange range = [hint rangeOfString:@"*"];
+//        [LogUtils Log:TAG content:[NSString stringWithFormat:@"range.length = %ld, range.location = %ld", range.length, range.location]];
+        [hintString addAttribute:NSForegroundColorAttributeName value:[UIColor redColor] range:range];
+        
+        _detailHint.attributedText = hintString;
+    }
+    
+    // 是否身份验证
+    if (isNotLocationOrTimeOut) {
+        self.title = @"尚未进行位置校验,无法拍照";
+    } else {
+        NSString *contentName = [fullInfoDict objectForKey:@"bo_content_name"];
+        self.title = contentName;
+    }
+}
+
+#pragma mark 加载界面数据
+- (void)loadDatas {
+    photoPointerArray = [[NSMutableArray alloc] init];
+    
+    TemplateManager *templateManager = [[TemplateManager alloc] initWithDb:db];
+    photoPointerArray = [templateManager getCriticalByTemplateId:[fullInfoDict objectForKey:@"bo_template_detail_ver_id"]];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"photoPointerArray = %@", photoPointerArray]];
+    
+    NSString *contentType = [fullInfoDict objectForKey:@"content_type"];
+    // 遍历拍照点列表
+    for (NSMutableDictionary *photoPointer in photoPointerArray) {
+        if ([@"2" isEqualToString:contentType] || [@"3" isEqualToString:contentType]) {
+            // 替换拍照点名称中的文字,对应拍照点list中的POINT_NAME，replaceAll("，共([0-9]*)张", "")
+            NSString *pointName = [photoPointer objectForKey:@"point_name"];
+            [LogUtils Log:TAG content:[NSString stringWithFormat:@"before replace pointName = %@", pointName]];
+            NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"，共\\([0-9]*\\)张" options:NSRegularExpressionCaseInsensitive error:nil];
+            pointName = [regex stringByReplacingMatchesInString:pointName options:0 range:NSMakeRange(0, [pointName length]) withTemplate:@""];
+            [LogUtils Log:TAG content:[NSString stringWithFormat:@"after replace pointName = %@", pointName]];
+            [photoPointer setObject:pointName forKey:@"point_name"];
+        }
+        
+        if ([@"1" isEqualToString:contentType]) {
+            NSString *needValidate = [photoPointer objectForKey:@"need_validate"];
+            // 当拍照点为必拍点时，((HashMap<String, String>) list.get(i)).get("NEED_VALIDATE.equals(Constants.POINT_NEED_VALIDATE)")
+            if ([POINT_NEED_VALIDATE isEqualToString:needValidate]) {
+                // 在拍照点名称前加红色的*号，对应list中POINT_NAME
+                NSString *pointName = [NSString stringWithFormat:@"(*)%@", [photoPointer objectForKey:@"point_name"]];
+                [photoPointer setObject:pointName forKey:@"point_name"];
+            }
+        }
+    }
+    
+    if (photoPointerArray.count == 0) {
+        [SVProgressHUD showErrorWithStatus:@"暂无数据"];
+    }
+    
+    // 判断Documents下是否已经创建了qm目录，没有则创建
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSString *qmFolderPath = [BaseFunction getQMSystemFolderPath];
+    // Create folder
+    if (![fm fileExistsAtPath:qmFolderPath]) {
+        [fm createDirectoryAtPath:qmFolderPath withIntermediateDirectories:NO attributes:nil error:nil];
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"Create Foler: %@ Success.", qmFolderPath]];
+    }
+}
+
+#pragma mark - UITableView Delegate
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+//    [LogUtils Log:TAG content:[NSString stringWithFormat:@"photoPointerArray.count = %ld", photoPointerArray.count]];
+    return photoPointerArray.count;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    int row = (int)indexPath.row;
+    static NSString *DetailCellIdentifier = @"DetailCell";
+    static BOOL nibsRegistered = NO;
+    DetailCell *cell = (DetailCell *)[tableView dequeueReusableCellWithIdentifier:DetailCellIdentifier];
+    if (cell == nil) {
+        nibsRegistered = NO;
+    }
+    if (!nibsRegistered) {
+        [LogUtils Log:TAG content:@"cell is nil"];
+        UINib *nib = [UINib nibWithNibName:NSStringFromClass([DetailCell class]) bundle:nil];
+        [tableView registerNib:nib forCellReuseIdentifier:DetailCellIdentifier];
+        [self.searchDisplayController.searchResultsTableView registerNib:nib forCellReuseIdentifier:DetailCellIdentifier];
+        nibsRegistered = YES;
+        cell = (DetailCell *)[tableView dequeueReusableCellWithIdentifier:DetailCellIdentifier];
+    }
+    
+    cell.db = db;
+    
+    NSMutableDictionary *currentCellData = [photoPointerArray objectAtIndex:row];
+    [currentCellData setObject:_contentID forKey:@"bo_content_id"];
+    [currentCellData setObject:userid forKey:@"userid"];
+    [currentCellData setObject:[fullInfoDict objectForKey:@"content_type"] forKey:@"content_type"];
+    
+    cell.isLocated = isNotLocationOrTimeOut ? @"NO" : @"YES";
+    cell.delegate = self;
+    [cell initViewWithData:currentCellData AtRow:row];
+    [allDetailCells setObject:cell forKey:[NSString stringWithFormat:@"%d", row]];
+    
+    return cell;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    // 获取当前行的cell
+    DetailCell *cell = (DetailCell *)[allDetailCells objectForKey:[NSString stringWithFormat:@"%ld", indexPath.row]];
+    if (cell == nil) {
+        cell = (DetailCell *) [self tableView:tableView cellForRowAtIndexPath:indexPath];
+    }
+    
+    PhotoManager *photoManager = [[PhotoManager alloc] initWithDb:db];
+    NSDictionary *photoDict = [photoPointerArray objectAtIndex:indexPath.row];
+    NSString *criticalPointVerId = [photoDict objectForKey:@"bo_critical_point_ver_id"];
+    NSUInteger photoListCount = [photoManager getPhotoListByPointId:criticalPointVerId boContentId:_contentID userid:userid].count;
+    float photoRows = photoListCount / 4.0;
+    int rows = photoRows;
+    if (photoRows - rows > 0 || (rows == 0 && photoListCount != 0)) {
+        rows++;
+    }
+    NSNumber *titleHeight = [self getCellTitleHeightWithCell:cell title:[photoDict objectForKey:@"point_name"]];
+    
+    float photoCollectionViewHeight = 8 + titleHeight.floatValue + 18 + rows * photoItemWidthAndHeight + (rows + 1) * 10;
+    
+    return photoCollectionViewHeight;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView estimatedHeightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    return 60.0f;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+}
+
+#pragma mark -
+- (NSNumber *)getCellTitleHeightWithCell:(DetailCell *)cell title:(NSString *)title {
+    // 计算cell.projectName的文字大小
+    CGSize labelSize = [title sizeWithAttributes:@{NSFontAttributeName:cell.titleLabel.font}];
+    // 工程名label，大小适应文字内容
+    [cell.titleLabel sizeToFit];
+    // 计算cell.projectName的文字在当前手机屏幕的宽度减去左右间隔之后有几行
+    float lines = labelSize.width / (UI_SCREEN_WIDTH - 61);
+    // 转成整数，用来计算是否有非零的小数位
+    int l = (int) lines;
+    int lines_final = 0;
+    // 如果有非零的小数位，说明超过l行，应该加1
+    if (lines - l > 0) {
+        lines_final = lines + 1;
+    } else {
+        lines_final = l;
+    }
+    // 动态计算cell的高度
+    float height = lines_final * labelSize.height + (lines - 1) * 3;
+    NSNumber *titleHeight = [[NSNumber alloc] initWithFloat:height];
+    
+    return titleHeight;
+}
+
+#pragma mark 点击整改按钮
+- (void)rectification {
+    [LogUtils Log:TAG content:@"rectification btn clicked"];
+    // 跳转到待办页面
+    ScheduleViewController *scheduleViewController = [[ScheduleViewController alloc] initWithNibName:@"ScheduleViewController" bundle:nil];
+    scheduleViewController.needBack = @"YES";
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:scheduleViewController];
+    [self.navigationController presentViewController:nav animated:YES completion:nil];
+     dbNeedClosed = NO;
+}
+
+#pragma mark 点击拍照按钮
+- (void)clickCameraWithCurrentRow:(NSInteger)row {
+    currentTakePhotoRow = row;
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"currentTakePhotoRow = %ld", currentTakePhotoRow]];
+    // 判断是否支持相机
+    if([UIImagePickerController isSourceTypeAvailable:UIImagePickerControllerSourceTypeCamera]) {
+        NSUInteger sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
+        // 相机
+        sourceType = UIImagePickerControllerSourceTypeCamera;
+        // 跳转到相机或相册页面
+        UIImagePickerController *imagePickerController = [[UIImagePickerController alloc] init];
+        imagePickerController.delegate = self;
+        // 设置照片是否可编辑
+        imagePickerController.allowsEditing = NO;
+        imagePickerController.sourceType = sourceType;
+        
+        dbNeedClosed = NO;
+        //此处的delegate是上层的ViewController，如果你直接在ViewController使用，直接self就可以了
+        [self presentViewController:imagePickerController animated:YES completion:^{}];
+    }
+}
+
+#pragma mark 点击照片，跳转到照片详情界面
+- (void)clickPhotoJumpToDetailWithFilePath:(NSString *)filePath photoId:(NSString *)photoId type:(NSString *)type mode:(NSString *)mode isDoodled:(NSString *)isDoodled currentRow:(NSInteger)currentRow projectName:(NSString *)projectName{
+    currentClickedTableRow = currentRow;
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"filePath = %@", filePath]];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"photoId = %@", photoId]];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"type = %@", type]];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"currentClickedTableRow = %ld", currentClickedTableRow]];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"projectName = %@", projectName]];
+    
+    PhotoDetailViewController *photoDetailViewController = [[PhotoDetailViewController alloc] initWithNibName:@"PhotoDetailViewController" bundle:nil];
+    photoDetailViewController.filePath = filePath;
+    photoDetailViewController.photoId = photoId;
+    photoDetailViewController.type = type;
+    photoDetailViewController.mode = mode;
+    photoDetailViewController.isDoodle = isDoodled;
+    photoDetailViewController.projectName = projectName;
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:photoDetailViewController];
+    [self.navigationController presentViewController:nav animated:YES completion:nil];
+    dbNeedClosed = NO;
+}
+
+#pragma mark 拍完照片且确定使用照片的回调委托方法
+- (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary *)info {
+    [picker dismissViewControllerAnimated:YES completion:^{
+        // 获取拍摄的照片
+        UIImage *image = [info valueForKey:@"UIImagePickerControllerOriginalImage"];
+        // 生成照片的名字，为当前时间
+        NSString *photoName = [BaseFunction getPhotoNameWithCurrentTime];
+        NSString *qmFolderPath = [BaseFunction getQMSystemFolderPath];
+        
+        // 保存照片，格式为jpg
+        NSString *photoSavePath = [NSString stringWithFormat:@"%@/%@.jpg", qmFolderPath, photoName];
+        //    [LogUtils Log:TAG content:[NSString stringWithFormat:@"photoSavePath = %@", photoSavePath]];
+        //    BOOL saveResult = [BaseFunction saveImage:image toPath:qmFolderPath withName:photoName andExtension:@"jpg"];
+        //    [LogUtils Log:TAG content:[NSString stringWithFormat:@"照片保存: %@", saveResult ? @"成功" : @"失败"]];
+        
+        // 压缩照片并保存
+        BOOL saveRes = [BaseFunction compressImage:image AndSaveToPath:qmFolderPath SaveFileName:photoName andExtension:@"jpg"];
+        [LogUtils Log:TAG content:saveRes ? @"压缩照片保存成功" : @"压缩照片保存失败"];
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"照片 qmFolderPath is %@", qmFolderPath]];
+        
+        // 根据照片生成小图
+        UIImage *smallPhoto = [BaseFunction scaleImage:image toSize:CGSizeMake(SMALL_PHOTO_SIZE, SMALL_PHOTO_SIZE)];
+        // 将小图保存到qm目录下
+        NSString *smallPhotoName = [NSString stringWithFormat:@"_SMall%@", photoName];
+        BOOL saveSmallPhotoResult = [BaseFunction saveImage:smallPhoto toPath:qmFolderPath withName:smallPhotoName andExtension:@"jpg"];
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"照片小图保存: %@", saveSmallPhotoResult ? @"成功" : @"失败"]];
+        
+        // 获取拍照按钮对应的拍照点cell
+//        DetailCell *cell = [allDetailCells objectForKey:[NSString stringWithFormat:@"%ld", currentTakePhotoRow]];
+//        [LogUtils Log:TAG content:[NSString stringWithFormat:@"cell是否为nil：%@", cell == nil ? @"YES" : @"NO"]];
+        
+        // 更新对应单项工程巡检时间SiteManager.ModifyEnterDate(控制点信息Map.get("BO_SINGLE_PROJECT_ID"));（详见黄色框）
+        SingleProjectManager *singleProjectManager = [[SingleProjectManager alloc] initWithDb:db];
+        BOOL modifyResult = [singleProjectManager modifyEnterDate:[fullInfoDict objectForKey:@"bo_single_project_id"]];
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"更新对应单项工程巡检时间: %@", modifyResult ? @"成功" : @"失败"]];
+        // 保存最近拍照时间SharedPreferences.Editor.putString（"photo_date"，new DateUtil().getToday()）
+        [AppConfigure setObject:[BaseFunction getToday] ForKey:PHOTO_DATE];
+        
+        // UUID随机id
+        NSString *photoId = [[NSUUID UUID] UUIDString];
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"photoId = %@", photoId]];
+        NSDictionary *photoPointData = [photoPointerArray objectAtIndex:currentTakePhotoRow];
+        NSString *longitude = [NSString stringWithFormat:@"%f", ((NSNumber *) ([AppConfigure objectForKey:LONGITUDE])).floatValue];
+        NSString *latitude = [NSString stringWithFormat:@"%f", ((NSNumber *) ([AppConfigure objectForKey:LATITUDE])).floatValue];
+        NSString *isFormal;
+        NSString *contentType = [fullInfoDict objectForKey:@"content_type"];
+        if ([@"2" isEqualToString:contentType] || [@"3" isEqualToString:contentType]) {
+            isFormal = @"3";
+        } else {
+            isFormal = @"1";
+        }
+        NSString *fileSize = [NSString stringWithFormat:@"%lld", [BaseFunction fileSizeAtPath:photoSavePath]];
+        NSString *mineImageId = [AppConfigure objectForKey:MINE_IMAGE_ID];
+        mineImageId = mineImageId == nil ? @"null" : mineImageId;
+        NSString *photoNumber = [AppConfigure objectForKey:PHOTO_NUMBER];
+        photoNumber = photoNumber == nil ? @"null" : photoNumber;
+        NSString *sectionId = [fullInfoDict objectForKey:@"bo_project_section_id"];
+        sectionId = sectionId == nil ? @"null" : sectionId;
+        // 保存到数据库bo_photo中
+        PhotoManager *photoManager = [[PhotoManager alloc] initWithDb:db];
+        //    [LogUtils Log:TAG content:[NSString stringWithFormat:@"before insertPhoto getPhotoCountList = %ld", [photoManager getPhotoCountList:_contentID userid:userid].count]];
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"photoPointData = %@", photoPointData]];
+        BOOL insertPhotoResult = [photoManager insertPhoto:photoId photoName:photoName photoPath:qmFolderPath boCriticalPointVerId:[photoPointData objectForKey:@"bo_critical_point_ver_id"] pointName:[photoPointData objectForKey:@"point_name"] boSingleProjectId:[fullInfoDict objectForKey:@"bo_single_project_id"] boProjectSelectionId:sectionId boContentId:_contentID filePrefix:photoName fileSuffix:@".jpg" description:@"" memo:@"" longitude:longitude latitude:latitude createDate:[BaseFunction getToday] refMineImageId:mineImageId isFormal:isFormal photoType:@"1" isUpload:@"1" photoSize:fileSize serializeNum:photoNumber boProblemId:[fullInfoDict objectForKey:@"bo_problem_id"] boProblemReplyId:[fullInfoDict objectForKey:@"bo_problem_reply_id"] userid:userid];
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"保存到数据库bo_photo: %@", insertPhotoResult ? @"成功" : @"失败"]];
+        
+        // 更新控制点已完成巡检数量ContentManager.updateContentComplete(getIntent().getStringExtra("BO_CONTENT_ID"), new DateUtil().getDate(), PhotoManager.getPhotoCountList(getIntent().getStringExtra("BO_CONTENT_ID")).size(), Map.get("CONTENT_TYPE"))（详见黄色框）
+        ContentManager *contentManager = [[ContentManager alloc] initWithDb:db];
+        NSString *photoCount = [NSString stringWithFormat:@"%ld", [photoManager getPhotoCountList:_contentID userid:userid].count];
+        //    [LogUtils Log:TAG content:[NSString stringWithFormat:@"after insertPhoto photoCount = %@", photoCount]];
+        BOOL updateResult = [contentManager updateContentCompleteWithBoContentId:_contentID updateDate:[BaseFunction getToday] currentNum:photoCount type:contentType userid:userid];
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"更新控制点已完成巡检数量: %@", updateResult ? @"成功" : @"失败"]];
+        // 在拍照点列中加入照片，放在第一张位置
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"currentTakePhotoRow = %ld", currentTakePhotoRow]];
+        // 刷新该行数据
+        [_table reloadRowsAtIndexPaths:[NSArray arrayWithObject:[NSIndexPath indexPathForRow:currentTakePhotoRow inSection:0]] withRowAnimation:UITableViewRowAnimationFade];
+    }];
+}
+
+#pragma mark 取消照片时回调的委托方法
+- (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker {
+    [self dismissViewControllerAnimated:YES completion:nil];
+    [LogUtils Log:TAG content:@"take photo canceled"];
+}
+
+#pragma mark -
+/**
+ *  判断最近一次定位是否不在有效时间区间内（时间区间：24小时）
+ *
+ *  @return 定位是否超时
+ */
+- (BOOL)getLocationTimeIntervalSinceCurrentDateIsTimeOut {
+    if (IsStringEmpty(lastLocationTime)) {
+        [LogUtils Log:TAG content:@"lastLocationTime = null"];
+        return true;
+    }
+    
+    NSDate *currentDate = [NSDate date];
+    //    NSLog(@"currentDate = %f", [currentDate timeIntervalSince1970]);
+    NSDate *lastLocationDate = [BaseFunction dateFromString:lastLocationTime dateFormat:DATE_LONG];
+    //    NSLog(@"lastLocationDate = %f", [lastLocationDate timeIntervalSince1970]);
+    double timeDifference = [currentDate timeIntervalSinceDate:lastLocationDate];
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"timeDifference = %f", timeDifference]];
+    
+    return [self isTimeOut:timeDifference];
+}
+
+/**
+ *  判断时间差(秒)是否超过24小时
+ *
+ *  @param timeDifference 时间差
+ *
+ *  @return 时间差是否超过24小时
+ */
+- (BOOL)isTimeOut:(double)timeDifference {
+    return timeDifference > 86400;
+}
+
+#pragma mark 点击返回按钮
+- (void)back:(id)sender {
+    [SVProgressHUD dismiss];
+    [self.navigationController dismissViewControllerAnimated:YES completion:^() {}];
+}
+
+#pragma mark -
+- (void)viewDidAppear:(BOOL)animated {
+    dbNeedClosed = YES;
+    [db open];
+    
+    if (currentClickedTableRow >= 0) {
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"currentClickedTableRow = %ld", currentClickedTableRow]];
+        // 刷新该行数据
+        [_table reloadRowsAtIndexPaths:[NSArray arrayWithObject:[NSIndexPath indexPathForRow:currentClickedTableRow inSection:0]] withRowAnimation:UITableViewRowAnimationFade];
+        currentClickedTableRow = -1;
+    }
+}
+
+- (void) viewDidDisappear:(BOOL)animated {
+    if(dbNeedClosed) {
+        [db close];
+    }
+}
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+@end

@@ -1,0 +1,77 @@
+//
+//  PhotoInfoEditAlertView.m
+//  hxqm_mobile
+//
+//  Created by HelloWorld on 3/6/15.
+//  Copyright (c) 2015 huaxin. All rights reserved.
+//
+
+#import "PhotoInfoEditAlertView.h"
+#import "GTMNSString+URLArguments.h"
+#import "LogUtils.h"
+#import "MyMacros.h"
+
+#define TAG @"_PhotoInfoEditAlertView"
+
+@interface PhotoInfoEditAlertView ()
+
+@end
+
+@implementation PhotoInfoEditAlertView
+
+- (id) initWithFrame:(CGRect)frame isFormal:(NSString *)isFormal photoName:(NSString *)photoName photoNameRule:(NSString *)photoNameRule memo:(NSString *)memo projectName:(NSString *)projectName contentName:(NSString *)contentName {
+    self = [super initWithFrame:frame];
+    if(self) {
+        NSArray *objects = [[NSBundle mainBundle] loadNibNamed:@"PhotoInfoEditAlertView" owner:self options:nil];
+        for(NSObject *obj in objects) {
+            if([obj isKindOfClass:[PhotoInfoEditAlertView class]]) {
+                self = (PhotoInfoEditAlertView *) obj;
+                break;
+            }
+        }
+        self.frame = frame;
+    }
+    
+    int selectedIndex = [isFormal intValue] - 1;
+    [_formalOrTempSegment setSelectedSegmentIndex:selectedIndex];
+    
+    if (IsStringEmpty(photoName)) {
+        if([photoNameRule myContainsString:@"ZZ"]) {
+            photoName = [NSString stringWithFormat:@"%@%@", projectName, contentName];
+        }
+    }
+    
+    _photoNameTextField.text = photoName;
+    
+    _photoNameTextField.placeholder = [NSString stringWithFormat:@"命名规范：%@", photoNameRule];
+    _memoTextField.text = memo;
+    
+    // 绘制左上角和右上角为圆角
+    UIBezierPath *maskPath = [UIBezierPath bezierPathWithRoundedRect:self.bounds byRoundingCorners:UIRectCornerTopLeft | UIRectCornerTopRight cornerRadii:CGSizeMake(6.0, 6.0)];
+    CAShapeLayer *maskLayer = [[CAShapeLayer alloc] init];
+    maskLayer.frame = self.bounds;
+    maskLayer.path = maskPath.CGPath;
+    
+    self.layer.mask = maskLayer;
+    
+    return self;
+}
+
+- (NSDictionary *)getAlertViewDatas {
+    NSMutableDictionary *datas = [[NSMutableDictionary alloc] init];
+    NSString *selectedIndex = [NSString stringWithFormat:@"%ld", [_formalOrTempSegment selectedSegmentIndex]];
+    NSString *photoName = _photoNameTextField.text;
+    NSString *memo = _memoTextField.text;
+    
+    [datas setObject:selectedIndex forKey:@"selected_index"];
+    [datas setObject:photoName forKey:@"photo_name"];
+    [datas setObject:memo forKey:@"memo"];
+    
+    return datas;
+}
+
+- (void)setInputDisable:(BOOL)disable {
+    [_formalOrTempSegment setEnabled:!disable];
+}
+
+@end

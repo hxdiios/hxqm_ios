@@ -1,0 +1,245 @@
+//
+//  ClientDBManager.m
+//  hxqm_mobile
+//
+//  Created by 刘志 on 15/1/14.
+//  Copyright (c) 2015年 huaxin. All rights reserved.
+//
+
+#import "ClientDBManager.h"
+#import "MyMacros.h"
+#import "BaseFunction.h"
+
+
+@implementation ClientDBManager
+
+FMDatabase *db;
+
+- (void) sharedDatabase:(FMDatabase *)database {
+    db = database;
+}
+
+- (id) initWithDb:(FMDatabase *)database {
+    self = [super init];
+    if(self) {
+        db = database;
+    }
+    return self;
+}
+
+- (id) initWithDb {
+    self = [super init];
+    if(self) {
+        db = [BaseFunction createDB];
+    }
+    return self;
+}
+
+- (id) init {
+    self = [super init];
+    if(self) {
+        /*if(!db) {
+            db = [BaseFunction createDB];
+        }*/
+    }
+    return self;
+}
+
+//创建数据库
+- (void) createDB {
+    //获取document目录
+    NSMutableString *documentPath = PATH_OF_DOCUMENT;
+    NSString *dbPath = [documentPath stringByAppendingPathComponent:@"hxqm.sqlite"];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    if(![fileManager fileExistsAtPath:dbPath]) {
+        //数据库未创建时，创建数据库
+        db = [[FMDatabase alloc] initWithPath:dbPath];
+        [self createTables];
+    } else {
+        //已创建，获取db实例
+        db = [FMDatabase databaseWithPath:dbPath];
+    }
+}
+
+//添加数据库用到的表
+- (void) createTables {
+    NSString * sqlFilePath = [[NSBundle mainBundle] pathForResource:@"create" ofType:@"sql"];
+    NSString *content = [NSString stringWithContentsOfFile:sqlFilePath encoding:NSUTF8StringEncoding error:nil];
+    NSArray *sqls = [content componentsSeparatedByString:@";"];
+    [db open];
+    for(NSString *sql in sqls) {
+        [db executeStatements:sql];
+    }
+    [db close];
+}
+
+/**
+ * 打开数据库
+ */
+- (BOOL)openDB {
+    return [db open];
+}
+
+/**
+ * 关闭数据库
+ */
+- (BOOL)closeDB {
+    return [db close];
+}
+
+/**
+ * 提交事务
+ */
+- (BOOL) commitDB {
+    return [db commit];
+}
+
+/**
+ * 开始事务
+ */
+- (BOOL) beginTransaction {
+    return [db beginTransaction];
+}
+
+
+/**
+ * 回滚事务
+ */
+- (BOOL) rollback {
+    return [db rollback];
+}
+
+- (BOOL) inTransaction {
+    return [db inTransaction];
+}
+
+/**
+ * 执行更新语句操作，可配合事务
+ */
+- (BOOL) executeUpdate:(NSString *)sql params:(NSArray *)params {
+    return  [db executeUpdate:sql withArgumentsInArray:params];;
+}
+
+/**
+ * 执行sql查询结果，获取结果集为FMResultSet
+ *
+ * @param sql
+ * @param params
+ * @return
+ */
+- (FMResultSet *) select : (NSString *) sql params : (NSArray *) params {
+    FMResultSet *set = [db executeQuery:sql withArgumentsInArray:params];
+    return set;
+}
+
+/**
+ * 执行sql查询结果集合，获取结果集为NSArray,数据集合里的子项为NSDictionary
+ *
+ * @param sql
+ * @param params
+ * @return
+ */
+- (NSMutableArray *) getListBySql : (NSString*) sql params : (NSArray *) params {
+    NSMutableArray *array = [[NSMutableArray alloc] init];
+    FMResultSet *set = [self select:sql params:params];
+    NSMutableDictionary *dictionary = set.columnNameToIndexMap;
+    while ([set next]) {
+        NSMutableDictionary *item = [[NSMutableDictionary alloc] init];
+        for(NSString *key in dictionary) {
+            [item setObject:[NSString stringWithFormat:@"%@", [set stringForColumn:key]] forKey:key];
+        }
+        [array addObject:item];
+    }
+    return array;
+}
+
+/**
+ * 执行sql查询结果集合，获取结果集为NSArray,数据集合里的子项为NSDictionary
+ *
+ * @param sql
+ * @param params
+ * @return
+ */
+- (NSMutableArray *) getUpperListBySql : (NSString*) sql params : (NSArray *) params {
+    NSMutableArray *array = [[NSMutableArray alloc] init];
+    FMResultSet *set = [self select:sql params:params];
+    NSMutableDictionary *dictionary = set.columnNameToIndexMap;
+    while ([set next]) {
+        NSMutableDictionary *item = [[NSMutableDictionary alloc] init];
+        for(NSString *key in dictionary) {
+            NSMutableString *tempval = [NSString stringWithFormat:@"%@", [set stringForColumn:key]];
+            tempval=([@"(null)" isEqualToString:tempval])? @"":tempval;
+            [item setObject:tempval forKey:[key uppercaseString]];
+        }
+        [array addObject:item];
+    }
+    return array;
+}
+
+/**
+ * 执行sql 获取结果为Map<String, String>
+ *
+ * @param sql
+ * @param params
+ * @return
+ */
+- (NSDictionary *) getMapBySql : (NSString *) sql params : (NSArray *) params {
+    NSMutableArray *array = [self getListBySql:sql params:params];
+    if(array.count > 0) {
+        return [array objectAtIndex:0];
+    } else {
+        return nil;
+    }
+}
+
+/**
+ * 执行sql 获取结果为Map<String, String>
+ *
+ * @param sql
+ * @param params
+ * @return
+ */
+- (NSDictionary *) getUpperMapBySql : (NSString *) sql params : (NSArray *) params {
+    NSMutableArray *array = [self getUpperListBySql:sql params:params];
+    if(array.count > 0) {
+        return [array objectAtIndex:0];
+    } else {
+        return nil;
+    }
+}
+
+/**
+ * 执行sql 获取值
+ *
+ * @param sql
+ * @param params
+ * @param key
+ * @return
+ */
+- (NSString *) getStringBySql : (NSString *) sql params : (NSArray *) params key : (NSString *) key {
+    FMResultSet *set = [self select:sql params:params];
+    if([set next]) {
+        NSString *value = [NSString stringWithFormat:@"%@", [set stringForColumn:key]];
+        return value;
+    } else {
+        return nil;
+    }
+}
+
+/**
+ * 执行SQL
+ *
+ * @param sql
+ * @param params
+ * @return 成功true；失败false
+ */
+- (BOOL) executeSql : (NSString *) sql params : (NSArray *)params {
+    BOOL result = NO;
+    if(params) {
+        result = [db executeUpdate:sql withArgumentsInArray:params];
+    } else
+        result = [db executeUpdate:sql];
+    return result;
+}
+
+@end

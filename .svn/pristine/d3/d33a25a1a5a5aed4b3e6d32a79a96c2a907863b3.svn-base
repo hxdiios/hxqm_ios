@@ -1,0 +1,512 @@
+//
+//  SingleProjectManager.m
+//  hxqm_mobile
+//
+//  Created by HelloWorld on 1/16/15.
+//  Copyright (c) 2015 huaxin. All rights reserved.
+//
+
+#import "SingleProjectManager.h"
+#import "LogUtils.h"
+#import "MyMacros.h"
+#import "BaseFunction.h"
+#import "GTMNSString+URLArguments.h"
+
+#define TAG @"SingleProjectManager"
+
+@implementation SingleProjectManager
+
+- (NSString *) test {
+    return @"SingleProjectManager";
+}
+
+/**
+ * gson格式插入数据
+ *
+ * @param singleProject
+ */
+- (BOOL)insertOneRecord:(NSDictionary *)jso userid:(NSString *)userid {
+    NSArray *sqlArray = @[@"REPLACE INTO BO_SINGLE_PROJECT(BO_SINGLE_PROJECT_ID,PROJECT_NUMBER,PROJECT_NAME,",
+                          @"LONGITUDE,LATITUDE,START_TIME,END_TIME,CHECK_TIME,PROJECT_HELPER,",
+                          @"BO_TEMPLATE_VER_ID,BO_TEMPLATE_ID,BO_DEPT_PROJECT_ID,DEPT_PROJECT_NAME,AREA_ID,MAJOR_NAME,",
+                          @"MAJOR_ID,ENTER_DATE,UPDATE_DATE,CREATE_DATE,UPDATE_TIMESTAMP,FULLUPLOAD_STATE,",
+                          @"PROJECT_STATUS,PROJECT_NAME_HELPER,DOMAIN_ID,NEED_AMOUNT,UPLOAD_AMOUNT,USERID,DELETE_FLAG) ",
+                          @" VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString *apart in sqlArray) {
+        [sql appendString:apart];
+    }
+    
+    NSArray *params = @[[jso objectForKey:@"BO_SINGLE_PROJECT_ID"],
+                        [jso objectForKey:@"PROJECT_NUMBER"],
+                        [jso objectForKey:@"PROJECT_NAME"],
+                        [jso objectForKey:@"LONGITUDE"],
+                        [jso objectForKey:@"LATITUDE"],
+                        [jso objectForKey:@"START_TIME"],
+                        [jso objectForKey:@"END_TIME"],
+                        [jso objectForKey:@"CHECK_TIME"],
+                        [jso objectForKey:@"PROJECT_HELPER"],
+                        [jso objectForKey:@"BO_TEMPLATE_VER_ID"],
+                        [jso objectForKey:@"BO_TEMPLATE_ID"],
+                        [jso objectForKey:@"BO_DEPT_PROJECT_ID"],
+                        [jso objectForKey:@"DEPT_PROJECT_NAME"],
+                        [jso objectForKey:@"AREA_ID"],
+                        [jso objectForKey:@"MAJOR_NAME"],
+                        [jso objectForKey:@"MAJOR_ID"],
+                        [BaseFunction getToday],
+                        [jso objectForKey:@"UPDATE_DATE"],
+                        [jso objectForKey:@"CREATE_DATE"],
+                        [jso objectForKey:@"UPDATE_TIMESTAMP"],
+                        [jso objectForKey:@"FULLUPLOAD_STATE"],
+                        [jso objectForKey:@"PROJECT_STATUS"],
+                        [jso objectForKey:@"PROJECT_NAME_HELPER"],
+                        [jso objectForKey:@"DOMAIN_ID"],
+                        [jso objectForKey:@"NEED_AMOUNT"],
+                        [jso objectForKey:@"UPLOAD_AMOUNT"],
+                        userid,
+                        [jso objectForKey:@"DELETE_FLAG"],];
+    
+    return [self executeUpdate:sql params:params];
+}
+
+/**
+ * 批量保存站点
+ *
+ * @param sites
+ */
+- (void)saveSites:(NSArray *)list userid:(NSString *)userid {
+    [LogUtils Log:TAG content:@"基站插入开始"];
+    
+    for (int i = 0; i < list.count; i++) {
+        [self insertOneRecord:[list objectAtIndex:i] userid:userid];
+    }
+    
+    [LogUtils Log:TAG content:@"基站插入结束"];
+}
+
+- (NSMutableArray *)getUserSitesMap:(NSString *)userid {
+    NSString *sql = @"SELECT * FROM BO_SITE S WHERE S.BELONGUSER = ? ORDER BY ENTER_DATE DESC";
+    
+    return [self getListBySql:sql params:@[userid]];
+}
+
+/**
+ * 得到基站列表最晚更新时间
+ *
+ * @return
+ */
+- (NSString *)getLatestUpdateDate:(NSString *)userid {
+    NSString *sql = @"SELECT MAX(UPDATE_TIMESTAMP) UPDATE_TIMESTAMP FROM BO_SINGLE_PROJECT B WHERE B.USERID =? ";
+    NSString *updateTime = [self getStringBySql:sql params:@[userid] key:@"UPDATE_TIMESTAMP"];
+    if (IsStringEmpty(updateTime) || [updateTime myContainsString:@"null"]) {
+        updateTime = @"";
+    }
+    
+    return updateTime;
+}
+
+/**
+ * @param keyWord
+ *            查询关键词
+ * @param longtitude
+ *            当前经度
+ * @param latitude
+ *            当前纬度
+ * @param target
+ *            查询目标(站点/项目)
+ * @return
+ */
+- (NSMutableArray *)searchSites:(NSString *)majorId deptProjectId:(NSString *)deptProjectId keyinfo:(NSString *)keyinfo longtitude:(float)longtitude latitude:(float)latitude endNum:(int)endNum userid:(NSString *)userid {
+    NSMutableArray *sites = [self searchSitesIncrement:majorId deptProjectId:deptProjectId keyinfo:keyinfo longtitude:longtitude latitude:latitude offSetNum:0 endNum:endNum userid:userid];
+    
+    return sites;
+}
+
+/**
+ * 增量获取数据
+ *
+ * @return
+ */
+- (NSMutableArray *)searchSitesIncrement:(NSString *)majorId deptProjectId:(NSString *)deptProjectId keyinfo:(NSString *)keyinfo longtitude:(float)longtitude latitude:(float)latitude offSetNum:(int)offSetNum endNum:(int)endNum userid:(NSString *)userid {
+    NSArray *params;
+    NSMutableString *condition = [[NSMutableString alloc] init];
+    if (IsStringNotEmpty(keyinfo)) {
+        [condition appendString:@" AND (S.PROJECT_NUMBER LIKE ?                    "];
+        [condition appendString:@"   OR PROJECT_NAME LIKE ?                        "];
+        [condition appendString:@"   OR PROJECT_HELPER LIKE ?)                     "];
+        
+        params = @[[NSString stringWithFormat:@"%%%@%%", keyinfo],
+                   [NSString stringWithFormat:@"%%%@%%", keyinfo],
+                   [NSString stringWithFormat:@"%%%@%%", keyinfo],
+                   userid,
+                   [NSString stringWithFormat:@"%d", offSetNum],
+                   [NSString stringWithFormat:@"%d", endNum]];
+    } else {
+        [condition appendString:@" AND S.MAJOR_ID = ?                              "];
+        [condition appendString:@"   AND S.BO_DEPT_PROJECT_ID = ?                  "];
+        
+        params = @[majorId, deptProjectId, userid, [NSString stringWithFormat:@"%d", offSetNum], [NSString stringWithFormat:@"%d", endNum]];
+    }
+    
+    [condition appendString:@" AND S.USERID = ?"];
+    
+    NSArray *sqlArray = @[@"SELECT BO_SINGLE_PROJECT_ID,                       ",
+                          @"          PROJECT_NUMBER,                             ",
+                          @"          PROJECT_NAME,                               ",
+                          @"          LONGITUDE,                                  ",
+                          @"          LATITUDE,                                   ",
+                          @"          BO_TEMPLATE_VER_ID,                         ",
+                          @"          BO_TEMPLATE_ID,                             ",
+                          @"          BO_DEPT_PROJECT_ID,                         ",
+                          @"          DEPT_PROJECT_NAME,                          ",
+                          @"          ENTER_DATE,                                 ",
+                          @"          UPDATE_DATE,                                ",
+                          @"          MAJOR_ID,                                   ",
+                          @"          MAJOR_NAME,                                 ",
+                          @"          UPDATE_TIMESTAMP,                           ",
+                          @"          NEED_AMOUNT,                                ",
+                          @"          UPLOAD_AMOUNT                               ",
+                          @" FROM BO_SINGLE_PROJECT S                             ",
+                          @" WHERE S.DELETE_FLAG != '2'                           ",
+                          condition,
+                          @" ORDER BY S.CHECK_TIME DESC,UPDATE_TIMESTAMP DESC     ",
+                          @" LIMIT ?,?                                            "];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString *apart in sqlArray) {
+        [sql appendString:apart];
+    }
+    NSMutableArray *sites = [self getListBySql:sql params:params];
+    for (NSMutableDictionary *site in sites) {
+        if (longtitude == 0) {
+            [site setObject:@"未知" forKey:@"PROJECT_DISTANCE"];
+        } else {
+            NSString *site_distance = [BaseFunction calculateDistance:longtitude latitude:latitude longitude2:[site objectForKey:@"longitude"] latitude2:[site objectForKey:@"latitude"]];
+            [site setObject:site_distance forKey:@"PROJECT_DISTANCE"];
+        }
+        NSString *needAmount = IsStringEmpty([site objectForKey:@"need_amount"]) ? @"0" : [site objectForKey:@"need_amount"];
+        NSString *uploadAmount = IsStringEmpty([site objectForKey:@"upload_amount"]) ? @"0" : [site objectForKey:@"upload_amount"];
+        [site setObject:[NSString stringWithFormat:@"已拍/应拍：%@/%@", needAmount, uploadAmount] forKey:@"upload_amount"];
+    }
+    
+    return sites;
+}
+
+/**
+ * @param keyWord
+ *            查询关键词
+ * @param longtitude
+ *            当前经度
+ * @param latitude
+ *            当前纬度
+ * @param target
+ *            查询目标(站点/项目)
+ * @return
+ */
+- (int)searchSiteNum:(NSString *)majorId deptProjectId:(NSString *)deptProjectId keyinfo:(NSString *)keyinfo longtitude:(float)longtitude latitude:(float)latitude userid:(NSString *)userid {
+    NSArray *params;
+    NSMutableString *condition = [[NSMutableString alloc] init];
+    
+    if (IsStringEmpty(majorId)) {
+        [condition appendString:@" AND (S.PROJECT_NUMBER LIKE ?                        "];
+        [condition appendString:@"   OR PROJECT_NAME LIKE ?                            "];
+        [condition appendString:@"   OR PROJECT_NAME_HELPER LIKE ?)                    "];
+        
+        params = @[[NSString stringWithFormat:@"%%%@%%", keyinfo],
+                   [NSString stringWithFormat:@"%%%@%%", keyinfo],
+                   [NSString stringWithFormat:@"%%%@%%", keyinfo],
+                   userid];
+    } else {
+        [condition appendString:@" AND S.MAJOR_ID = ?                                  "];
+        [condition appendString:@"   AND S.BO_DEPT_PROJECT_ID = ?                      "];
+        
+        params = @[majorId, deptProjectId, userid];
+    }
+    
+    [condition appendString:@"AND S.USERID = ?"];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    [sql appendString:@"SELECT   COUNT(1) COUNTS                              "];
+    [sql appendString:@" FROM BO_SINGLE_PROJECT S                             "];
+    [sql appendString:@" WHERE  S.DELETE_FLAG != '2'                          "];
+    [sql appendString:condition];
+    
+    int count = [[self getStringBySql:sql params:params key:@"COUNTS"] intValue];
+    
+    return count;
+}
+
+/**
+ * 得到最近date天未巡检站点数
+ *
+ * @param date
+ * @return 未巡检站点数
+ */
+- (NSString *)getSiteCountByDate:(NSString *)date userid:(NSString *)userid {
+    NSString *sql = @"SELECT COUNT(*) COUNTS FROM BO_SINGLE_PROJECT S WHERE S.ENTER_DATE < ? AND S.USERID = ? AND S.DELETE_FLAG != '2'";
+    
+    return [self getStringBySql:sql params:@[date, userid] key:@"COUNTS"];
+}
+
+/**
+ * 得到项目总数
+ *
+ * @return 基站总数
+ */
+- (NSString *)getTotalSiteCount:(NSString *)userid {
+    NSString *sql = @"SELECT COUNT(*) COUNTS FROM BO_SINGLE_PROJECT S WHERE S.USERID = ? AND S.DELETE_FLAG != '2'";
+    
+    return [self getStringBySql:sql params:@[userid] key:@"COUNTS"];
+}
+
+/**
+ * 更改单项巡检时间
+ *
+ * @param boSiteId
+ */
+- (BOOL)modifyEnterDate:(NSString *)boSingleProjectId {
+    NSString *sql = @"UPDATE BO_SINGLE_PROJECT  SET ENTER_DATE=? WHERE BO_SINGLE_PROJECT_ID=?";
+    
+    return [self executeSql:sql params:@[[BaseFunction getToday], boSingleProjectId]];
+}
+
+/**
+ * 得到任务列表
+ *
+ * @return
+ * @author hubo
+ */
+- (NSMutableArray *)getTaskList:(float)longtitude latitude:(float)latitude userid:(NSString *)userid {
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    
+    [sql appendString:@"SELECT S.BO_SINGLE_PROJECT_ID	,       								 "];
+    [sql appendString:@"       PROJECT_NAME,                                                     "];
+    [sql appendString:@"       LONGITUDE,                                                        "];
+    [sql appendString:@"       LATITUDE,                                                         "];
+    [sql appendString:@"       BO_TEMPLATE_VER_ID,                                               "];
+    [sql appendString:@"       BO_TEMPLATE_ID,                                                   "];
+    [sql appendString:@"       BO_DEPT_PROJECT_ID,                                               "];
+    [sql appendString:@"       DEPT_PROJECT_NAME,                                                "];
+    [sql appendString:@"       ENTER_DATE,                                                       "];
+    [sql appendString:@"       UPDATE_DATE,                                                      "];
+    [sql appendString:@"       MAJOR_ID,                                                         "];
+    [sql appendString:@"       MAJOR_NAME,                                                       "];
+    [sql appendString:@"       UPDATE_TIMESTAMP,                                                 "];
+    [sql appendString:@"       UPLOAD_AMOUNT,                                                    "];
+    [sql appendString:@"       F1.NUM_XJ,                                                        "];
+    [sql appendString:@"       F2.NUM_ALL,                                                       "];
+    [sql appendString:@"       F3.NUM_ZG,                                                        "];
+    [sql appendString:@"       COUNTS                                                            "];
+    [sql appendString:@"  FROM BO_SINGLE_PROJECT S                                               "];
+    [sql appendString:@"  LEFT JOIN (SELECT BO_SINGLE_PROJECT_ID, COUNT(1) COUNTS                "];
+    [sql appendString:@"               FROM (SELECT BO_SINGLE_PROJECT_ID                         "];
+    [sql appendString:@"                       FROM BO_CHECK_PROJECT S                           "];
+    [sql appendString:@"                      WHERE CHECK_STATE = ?                              "];
+    [sql appendString:@"                        AND USERID = ?                                   "];
+    [sql appendString:@"                     UNION ALL                                           "];
+    [sql appendString:@"                     SELECT M.BO_SINGLE_PROJECT_ID                       "];
+    [sql appendString:@"                       FROM BO_PROBLEM_REPLY M                           "];
+    [sql appendString:@"                       LEFT JOIN BO_PROBLEM L                            "];
+    [sql appendString:@"                         ON M.BO_PROBLEM_ID = L.BO_PROBLEM_ID            "];
+    [sql appendString:@"                        AND M.USERID = L.USERID                          "];
+    [sql appendString:@"                      WHERE PROBLEM_STATE = ?                            "];
+    [sql appendString:@"                        AND L.TYPES IN ('1','4')                         "];
+    [sql appendString:@"                        AND M.USERID = ?)                                "];
+    [sql appendString:@"              GROUP BY BO_SINGLE_PROJECT_ID) P                           "];
+    [sql appendString:@"    ON P.BO_SINGLE_PROJECT_ID = S.BO_SINGLE_PROJECT_ID                   "];
+    [sql appendString:@"  LEFT JOIN (SELECT C1.BO_SINGLE_PROJECT_ID,                             "];
+    [sql appendString:@"                    COUNT(BO_CONTENT_ID) NUM_XJ                          "];
+    [sql appendString:@"               FROM BO_CONTENT C1, BO_CHECK_PROJECT CP1                  "];
+    [sql appendString:@"              WHERE C1.BO_CHECK_PROJECT_ID = CP1.BO_CHECK_PROJECT_ID     "];
+    [sql appendString:@"                AND CP1.USERID = ?                                       "];
+    [sql appendString:@"                AND C1.CONTENT_TYPE = 2                                  "];
+    [sql appendString:@"                AND CP1.CHECK_STATE = 2                                  "];
+    [sql appendString:@"                AND C1.bo_total_num = -1                                 "];
+    [sql appendString:@"              GROUP BY C1.BO_SINGLE_PROJECT_ID) F1                       "];
+    [sql appendString:@"    ON F1.BO_SINGLE_PROJECT_ID = S.BO_SINGLE_PROJECT_ID                  "];
+    [sql appendString:@"  LEFT JOIN (SELECT C2.BO_SINGLE_PROJECT_ID, COUNT(BO_CONTENT_ID) NUM_ALL"];
+    [sql appendString:@"               FROM BO_CONTENT C2, BO_CHECK_PROJECT CP2                  "];
+    [sql appendString:@"              WHERE C2.BO_CHECK_PROJECT_ID = CP2.BO_CHECK_PROJECT_ID     "];
+    [sql appendString:@"                AND CP2.USERID = ?                                       "];
+    [sql appendString:@"                AND CP2.CHECK_STATE = 2                                  "];
+    [sql appendString:@"                AND C2.CONTENT_TYPE = 2                                  "];
+    [sql appendString:@"              GROUP BY C2.BO_SINGLE_PROJECT_ID) F2                       "];
+    [sql appendString:@"    ON F2.BO_SINGLE_PROJECT_ID = S.BO_SINGLE_PROJECT_ID                  "];
+    [sql appendString:@"  LEFT JOIN (SELECT PR.BO_SINGLE_PROJECT_ID,                             "];
+    [sql appendString:@"                    COUNT(PR.BO_PROBLEM_REPLY_ID) NUM_ZG                 "];
+    [sql appendString:@"               FROM BO_PROBLEM B,BO_PROBLEM_REPLY PR                     "];
+    [sql appendString:@"              WHERE B.BO_PROBLEM_ID = PR.BO_PROBLEM_ID                   "];
+    [sql appendString:@"                AND B.TYPES IN ('1','4')                                 "];
+    [sql appendString:@"                AND B.USERID = ?                                         "];
+    [sql appendString:@"                AND PR.PROBLEM_STATE = 1                                 "];
+    [sql appendString:@"                AND PR.USERID = ?		                                 "];
+    [sql appendString:@"              GROUP BY PR.BO_SINGLE_PROJECT_ID) F3                       "];
+    [sql appendString:@"    ON F3.BO_SINGLE_PROJECT_ID = S.BO_SINGLE_PROJECT_ID                  "];
+    [sql appendString:@" WHERE P.COUNTS IS NOT NULL                                              "];
+    [sql appendString:@"   AND S.USERID = ?                                                      "];
+    
+    NSArray *params = @[@"2", userid, @"1", userid, userid, userid, userid, userid, userid];
+    NSMutableArray *list = [self getListBySql:sql params:params];
+    for (NSMutableDictionary *dic in list) {
+        if (longtitude == 0) {
+            [dic setObject:@"未知" forKey:@"project_distance"];
+        } else {
+            NSString *site_distance = [BaseFunction calculateDistance:longtitude latitude:latitude longitude2:[dic objectForKey:@"longitude"] latitude2:[dic objectForKey:@"latitude"]];
+            [dic setObject:site_distance forKey:@"project_distance"];
+        }
+    }
+    
+    return list;
+}
+
+/**
+ * 得到任务数量
+ *
+ * @return
+ * @author hubo
+ */
+- (NSString *)getTaskNum:(NSString *)userid {
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    [sql appendString:@"SELECT SUM(COUNTS) COUNTS"];
+    [sql appendString:@"  FROM (SELECT COUNT(1) COUNTS "];
+    [sql appendString:@"          FROM BO_CHECK_PROJECT S "];
+    [sql appendString:@"         WHERE CHECK_STATE = ?"];
+    [sql appendString:@"           AND USERID = ?"];
+    [sql appendString:@"        UNION "];
+    [sql appendString:@"        SELECT COUNT(1) COUNTS  "];
+    [sql appendString:@"        FROM BO_PROBLEM_REPLY M LEFT JOIN BO_PROBLEM L"];
+    [sql appendString:@"          ON M.BO_PROBLEM_ID = L.BO_PROBLEM_ID "];
+    [sql appendString:@"          AND M.USERID = L.USERID "];
+    [sql appendString:@"          AND L.USERID = ? "];
+    [sql appendString:@"        WHERE PROBLEM_STATE  = ? "];
+    [sql appendString:@"          AND M.USERID = ?"];
+    [sql appendString:@"          AND L.TYPES IN ('1','4'))"];
+    
+    NSArray *params = @[@"2", userid, userid, @"1", userid];
+    
+    return [self getStringBySql:sql params:params key:@"COUNTS"];
+}
+
+/**
+ * 根据ID修改工程收藏状态
+ *
+ * @param id
+ * @return
+ * @author zhangff
+ */
+- (BOOL)changeFavoriteStatus:(NSString *)sid userid:(NSString *)userid {
+    BOOL isAdded = [self getFavoriteStatus:sid userid:userid];
+    NSString *newStatus = isAdded ? @"" : @"1";
+    NSString *sql = @"UPDATE BO_SINGLE_PROJECT  SET FAVORITE_STATUS=?,FAVORITE_DATE=? WHERE BO_SINGLE_PROJECT_ID=? AND USERID= ?";
+    NSArray *params = @[newStatus, [BaseFunction getToday], sid, userid];
+    BOOL isSuccess = [self executeSql:sql params:params];
+    
+    return isSuccess;
+}
+
+/**
+ * 根据ID获取工程收藏状态
+ *
+ * @param id
+ * @return
+ * @author zhangff
+ */
+- (BOOL)getFavoriteStatus:(NSString *)sid userid:(NSString *)userid {
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    [sql appendString:@"SELECT *"];
+    [sql appendString:@"  FROM BO_SINGLE_PROJECT S "];
+    [sql appendString:@"  WHERE S.BO_SINGLE_PROJECT_ID  = ? AND S.USERID=? AND S.FAVORITE_STATUS=1"];
+    
+    NSArray *params = @[sid, userid];
+    [self openDB];
+    FMResultSet *set = [self select:sql params:params];
+    BOOL result = [set next];
+    [set close];
+//    [self closeDB];
+    return result;
+}
+
+/**
+ * 获取当前用户收藏数据
+ *
+ * @return 结果集
+ * @author zhangff
+ */
+- (FMResultSet *)getFavoriteCursor:(NSString *)userid {
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    
+    [sql appendString:@"SELECT BO_SINGLE_PROJECT_ID AS _id,                                         "];
+    [sql appendString:@"    PROJECT_NAME,                                                           "];
+    [sql appendString:@"    '编号：' || PROJECT_NUMBER AS PROJECT_NUMBER,                            "];
+    [sql appendString:@"    '已拍/应拍：' || NEED_AMOUNT || '/' || UPLOAD_AMOUNT AS UPLOAD_AMOUNT,    "];
+    [sql appendString:@"    FAVORITE_DATE,                                                          "];
+    [sql appendString:@"    '' AS RELATIVE_DISTANCE                                                 "];
+    [sql appendString:@"  FROM BO_SINGLE_PROJECT S                                                  "];
+    [sql appendString:@"  WHERE S.USERID = ?                                                        "];
+    [sql appendString:@"    AND S.FAVORITE_STATUS = 1                                               "];
+    
+    FMResultSet *set = [self select:sql params:@[userid]];
+
+    return set;
+}
+
+/**
+ * 获得项目信息
+ *
+ * @param boSinglerProjectId
+ * @return map
+ * @author yanghua
+ */
+- (NSDictionary *)getSinglerProjectInfoById:(NSString *)boSinglerProjectId userid:(NSString *)userid {
+    NSString *sql = @"SELECT * FROM BO_SINGLE_PROJECT WHERE BO_SINGLE_PROJECT_ID = ? AND USERID = ?";
+    
+    return [self getMapBySql:sql params:@[boSinglerProjectId, userid]];
+}
+
+/**
+ * 更新经纬度
+ *
+ * @param map
+ * @return true or false
+ * @author yanghua
+ */
+- (BOOL)updateLocation:(NSDictionary *)map userid:(NSString *)userid {
+    NSString *sql = @"UPDATE BO_SINGLE_PROJECT SET LATITUDE = ?, LONGITUDE = ? WHERE BO_SINGLE_PROJECT_ID = ? AND USERID = ?";
+    NSArray *params = @[[map objectForKey:@"LATITUDE"],
+                        [map objectForKey:@"LONGITUDE"],
+                        [map objectForKey:@"BO_SINGLE_PROJECT_ID"],
+                        userid];
+    
+    return [self executeSql:sql params:params];
+}
+
+/**
+ * 获取当前用户最近浏览数据
+ *
+ * @return 结果集（20条）
+ * @author zhangff
+ */
+- (FMResultSet *)getBrowseCursor:(NSString *)userid {
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    
+    [sql appendString:@"SELECT BO_SINGLE_PROJECT_ID AS _id,                                         "];
+    [sql appendString:@"    PROJECT_NAME,                                                           "];
+    [sql appendString:@"    '编号：' || PROJECT_NUMBER AS PROJECT_NUMBER,                            "];
+    [sql appendString:@"    '已拍/应拍：' || NEED_AMOUNT || '/' || UPLOAD_AMOUNT AS UPLOAD_AMOUNT,    "];
+    [sql appendString:@"    ENTER_DATE,                                                             "];
+    [sql appendString:@"    '' AS RELATIVE_DISTANCE                                                 "];
+    [sql appendString:@"  FROM BO_SINGLE_PROJECT S                                                  "];
+    [sql appendString:@"  WHERE S.USERID = ?                                                        "];
+    [sql appendString:@"  ORDER BY S.ENTER_DATE DESC                                                "];
+    [sql appendString:@"  LIMIT 0,20                                                                "];
+    [self openDB];
+    FMResultSet *set = [self select:sql params:@[userid]];
+    
+    return set;
+}
+
+- (NSMutableArray *)getRandomProjectInfo:(NSString *)userid {
+    NSString *sql = @"SELECT * FROM BO_SINGLE_PROJECT P WHERE P.USERID = ?";
+    
+    return [self getListBySql:sql params:@[userid]];
+}
+
+@end

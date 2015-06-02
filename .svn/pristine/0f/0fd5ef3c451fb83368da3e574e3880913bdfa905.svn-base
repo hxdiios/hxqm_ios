@@ -1,0 +1,33 @@
+//
+//  PhotoDetailViewController.h
+//  hxqm_mobile
+//
+//  Created by HelloWorld on 3/6/15.
+//  Copyright (c) 2015 huaxin. All rights reserved.
+//
+
+#import "BaseViewController.h"
+#import "DoodleView.h"
+#import "MyScrollView.h"
+
+@interface PhotoDetailViewController : BaseViewController <UIAlertViewDelegate, DoodleViewDelegate>
+
+@property (weak, nonatomic) IBOutlet MyScrollView *scrollView;
+@property (weak, nonatomic) IBOutlet UIButton *editInfoBtn;
+@property (weak, nonatomic) IBOutlet UIButton *doodleBtn;
+@property (weak, nonatomic) IBOutlet UIView *undoAndRedoView;
+@property (weak, nonatomic) IBOutlet UIButton *undoBtn;
+@property (weak, nonatomic) IBOutlet UIButton *redoBtn;
+@property (weak, nonatomic) IBOutlet UIView *scaleRootView;
+@property (weak, nonatomic) IBOutlet DoodleView *doodleView;
+@property (weak, nonatomic) IBOutlet UIImageView *photoView;
+@property (weak, nonatomic) IBOutlet UIImageView *oldDoodlePathImg;
+
+@property (copy, nonatomic)NSString *filePath;
+@property (copy, nonatomic)NSString *photoId;
+@property (copy, nonatomic)NSString *type;
+@property (copy, nonatomic)NSString *mode;
+@property (copy, nonatomic)NSString *isDoodle;
+
+
+@end

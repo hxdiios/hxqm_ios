@@ -1,0 +1,269 @@
+//
+//  RabishViewController.m
+//  hxqm_mobile
+//
+//  Created by 刘志 on 15/1/28.
+//  Copyright (c) 2015年 huaxin. All rights reserved.
+//
+
+#import "RabishViewController.h"
+#import "ActionSheetDatePicker.h"
+#import "PhotoManager.h"
+#import "FMDatabase.h"
+#import "BaseFunction.h"
+#import "AppConfigure.h"
+#import "GTMNSString+URLArguments.h"
+#import "PhotoUtil.h"
+#import "SVProgressHUD.h"
+
+@interface RabishViewController () <UIAlertViewDelegate>{
+    ActionSheetDatePicker *datePicker;
+    NSDate *selectDate;
+    NSDateFormatter *formatter;
+    
+    //清理涂鸦照片是否勾选
+    BOOL isDooodleChecked;
+    //清理巡检下载照片是否勾选
+    BOOL isDownloadChecked;
+
+    NSDateFormatter *searchDateFormat;
+    
+    //可删除的图片集合，大小和数量
+    PhotoUtil *pUtil;
+
+}
+
+@end
+
+@implementation RabishViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    // Do any additional setup after loading the view from its nib.
+    [self addNavBackBtn:@"返回"];
+    selectDate = [NSDate date];
+    //输入框显示日期字符串的formatter
+    formatter = [[NSDateFormatter alloc] init];
+    [formatter setDateFormat:@"yyyy年-MM月-dd日"];
+    //初始化日期显示
+    _photoDate.text = [formatter stringFromDate:selectDate];
+    
+    //查询日期的格式字符串
+    searchDateFormat = [[NSDateFormatter alloc] init];
+    [searchDateFormat setDateFormat:@"yyyy-MM-dd"];
+    
+    isDooodleChecked = NO;
+    isDownloadChecked = NO;
+    
+    PhotoUtil *util = [self getDelablePhotoSize:@"" type:3];
+    NSString *size = [NSString stringWithFormat:@"%0.2fKB", util.photoSize / 1024.0];
+    _photoSize.text = size;
+}
+
+/**
+ *  获取可删除的图片尺寸和图片数量
+ *
+ *  @param type 删除图片类型
+ *  @param date 时间点
+ *
+ *  @return
+ */
+- (PhotoUtil *) getDelablePhotoSize : (NSString *) date type : (NSInteger) type{
+    FMDatabase *db = [BaseFunction createDB];
+    PhotoManager *photoManager = [[PhotoManager alloc] initWithDb:db];
+    [db open];
+    NSArray *array = [photoManager getPhotoBySizeAndDate:date clearContent:[NSString stringWithFormat:@"%ld",type] userid:[AppConfigure objectForKey:USERID]];
+    //照片大小
+    long long totalSize = 0;
+    //照片数量
+    NSInteger totalPhotoNum = 0;
+    NSFileManager *manager = [NSFileManager defaultManager];
+    for(NSInteger i = 0 ; i < array.count ; i++) {
+        NSDictionary *item = [array objectAtIndex:i];
+        NSString *isDoodled = [item objectForKey:@"is_doodled"];
+        NSString *photoId = [item objectForKey:@"bo_photo_id"];
+        NSString *photoPath = [item objectForKey:@"file_path"];
+        NSString *isDownload = [item objectForKey:@"is_download"];
+        NSString *downloadUrl = [item objectForKey:@"download_url"];
+        NSString *downloadSmallPicPath = [item objectForKey:@"download_small_path"];
+        
+        if([@"1" isEqualToString:isDownload]) {
+            if(![downloadUrl myContainsString:@"http"]) {
+                downloadUrl = [BaseFunction getCurrentPathWithFilePath:downloadUrl];
+                if([manager fileExistsAtPath:downloadUrl]) {
+                   totalSize += [[manager attributesOfItemAtPath:downloadUrl error:nil] fileSize];
+                    totalPhotoNum ++;
+                }
+            }
+            
+            if(![photoPath myContainsString:@"http"]) {
+                photoPath = [BaseFunction getCurrentPathWithFilePath:photoPath];
+                if([manager fileExistsAtPath:downloadSmallPicPath]) {
+                    totalSize += [[manager attributesOfItemAtPath:downloadSmallPicPath error:nil] fileSize];
+                    totalPhotoNum ++;
+                }
+            }
+        }  else if([@"1" isEqualToString:isDoodled]) {
+            NSString *doodlePhotoPath = [BaseFunction getDoodlePicSystemFolderPath];
+            NSString *doodlePath = [[doodlePhotoPath stringByAppendingString:photoId] stringByAppendingString:@".png"];
+            if([manager fileExistsAtPath:doodlePath]) {
+                totalSize += [[manager attributesOfItemAtPath:doodlePath error:nil] fileSize];
+                totalPhotoNum ++;
+            }
+            
+            NSString *mergePhotoPath = [BaseFunction getMergedPicSystemFolderPath];
+            NSString *mergePath = [[mergePhotoPath stringByAppendingString:photoId] stringByAppendingString:@".png"];
+            if([manager fileExistsAtPath:mergePath]) {
+                totalSize += [[manager attributesOfItemAtPath:mergePath error:nil] fileSize];
+                totalPhotoNum ++;
+            }
+            photoPath = [BaseFunction getCurrentPathWithFilePath:photoPath];
+            if([manager fileExistsAtPath:photoPath]) {
+                totalSize += [[manager attributesOfItemAtPath:photoPath error:nil] fileSize];
+                totalPhotoNum ++;
+            }
+        } else {
+            photoPath = [BaseFunction getCurrentPathWithFilePath:photoPath];
+            if([manager fileExistsAtPath:photoPath]) {
+                totalSize += [[manager attributesOfItemAtPath:photoPath error:nil] fileSize];
+                totalPhotoNum ++;
+            }
+        }
+    }
+    
+    PhotoUtil *util = [[PhotoUtil alloc] init];
+    util.photoSize = totalSize;
+    util.photoNum = totalPhotoNum;
+    util.delableArray = array;
+    return util;
+}
+
+- (void)didReceiveMemoryWarning {
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+- (IBAction)changeDate:(id)sender {
+    datePicker = [[ActionSheetDatePicker alloc] initWithTitle:@"" datePickerMode:UIDatePickerModeDate selectedDate:selectDate target:self action:@selector(dateWasSelected:element:) origin:sender];
+    [datePicker showActionSheetPicker];
+}
+
+- (void)dateWasSelected:(NSDate *)selectedDate element:(id)element {
+    selectDate = selectedDate;
+    _photoDate.text = [formatter stringFromDate:selectDate];
+}
+
+- (void)back:(id)sender {
+    [self.navigationController dismissViewControllerAnimated:YES completion:^() {
+        
+    }];
+}
+
+- (IBAction)clearDoodlePhoto:(id)sender {
+    isDooodleChecked = !isDooodleChecked;
+    //更新button的显示
+    NSString *bgName = isDooodleChecked ? @"checkbox_selected" : @"checkbox";
+    UIImage *img = ImageNamed(bgName);
+    [_clearDoodleBt setBackgroundImage:img forState:UIControlStateNormal];
+}
+
+- (IBAction)clearDownloadPhoto:(id)sender {
+    isDownloadChecked = !isDownloadChecked;
+    //更新button的显示
+    NSString *bgName = isDownloadChecked ? @"checkbox_selected" : @"checkbox";
+    UIImage *img = ImageNamed(bgName);
+    [_clearDownloadBt setBackgroundImage:img forState:UIControlStateNormal];
+}
+
+- (IBAction)clear:(id)sender {
+    NSInteger type = 4;
+    
+    if(isDooodleChecked && !isDownloadChecked) {
+        type = 1;
+    } else if(isDownloadChecked && !isDooodleChecked) {
+        type = 2;
+    } else if(isDooodleChecked && isDownloadChecked) {
+        type = 3;
+    } else {
+        type = 4;
+    }
+    
+    NSString *searchDate = [searchDateFormat stringFromDate:selectDate];
+    pUtil = [self getDelablePhotoSize:searchDate type:type];
+    NSString *message = [NSString stringWithFormat:@"本次共清除%ld张照片，可腾出%0.2fKB空间。",pUtil.photoNum,pUtil.photoSize / 1024.0];
+    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"确定清理" message:message delegate:self cancelButtonTitle:@"取消" otherButtonTitles:@"确定", nil];
+    [alert show];
+}
+
+- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex {
+    if(buttonIndex == 1) {
+        //删除图片
+        if(pUtil.photoNum == 0) {
+            return;
+        }
+        
+        NSArray *array = pUtil.delableArray;
+        FMDatabase *db = [BaseFunction createDB];
+        PhotoManager *dbManager = [[PhotoManager alloc] initWithDb:db];
+        [db open];
+        NSFileManager *manager = [NSFileManager defaultManager];
+        for(NSInteger i = 0 ; i < array.count ; i++) {
+            NSDictionary *item = [array objectAtIndex:i];
+            NSString *isDoodled = [item objectForKey:@"is_doodled"];
+            NSString *photoId = [item objectForKey:@"bo_photo_id"];
+            NSString *photoPath = [item objectForKey:@"file_path"];
+            NSString *isDownload = [item objectForKey:@"is_download"];
+            NSString *downloadUrl = [item objectForKey:@"download_url"];
+            NSString *downloadSmallPicPath = [item objectForKey:@"download_small_path"];
+            
+            if([@"1" isEqualToString:isDownload]) {
+                if(![downloadUrl myContainsString:@"http"]) {
+                    if([manager fileExistsAtPath:downloadUrl]) {
+                        [self deletePhoto:dbManager fileManager:manager photoPath:downloadUrl photoId:photoId];
+                    }
+                }
+                
+                if(![photoPath myContainsString:@"http"]) {
+                    if([manager fileExistsAtPath:downloadSmallPicPath]) {
+                        [self deletePhoto:dbManager fileManager:manager photoPath:downloadSmallPicPath photoId:photoId];
+                    }
+                }
+            }  else if([@"1" isEqualToString:isDoodled]) {
+                NSString *doodlePhotoPath = [BaseFunction getDoodlePicSystemFolderPath];
+                NSString *doodlePath = [[doodlePhotoPath stringByAppendingString:photoId] stringByAppendingString:@".png"];
+                if([manager fileExistsAtPath:doodlePath]) {
+                    [self deletePhoto:dbManager fileManager:manager photoPath:doodlePath photoId:photoId];
+                }
+                
+                NSString *mergePhotoPath = [BaseFunction getMergedPicSystemFolderPath];
+                NSString *mergePath = [[mergePhotoPath stringByAppendingString:photoId] stringByAppendingString:@".png"];
+                if([manager fileExistsAtPath:mergePath]) {
+                   [self deletePhoto:dbManager fileManager:manager photoPath:mergePath photoId:photoId];
+                }
+                
+                if([manager fileExistsAtPath:photoPath]) {
+                    [self deletePhoto:dbManager fileManager:manager photoPath:photoPath photoId:photoId];
+                }
+            } else {
+                if([manager fileExistsAtPath:photoPath]) {
+                    [self deletePhoto:dbManager fileManager:manager photoPath:photoPath photoId:photoId];
+                }
+            }
+        }
+        
+        [db close];
+        
+        [SVProgressHUD showSuccessWithStatus:@"数据已清理"];
+        PhotoUtil *util = [self getDelablePhotoSize:@"" type:3];
+        NSString *size = [NSString stringWithFormat:@"%0.2fKB", util.photoSize / 1024.0];
+        _photoSize.text = size;
+    }
+}
+
+- (void) deletePhoto : (PhotoManager *) photoManager fileManager : (NSFileManager *) fileManager
+           photoPath : (NSString *) photoPath photoId : (NSString *) photoId {
+    [fileManager removeItemAtPath:photoPath error:nil];
+    [photoManager deletePhoto:photoId userid:[AppConfigure objectForKey:USERID]];
+}
+
+@end

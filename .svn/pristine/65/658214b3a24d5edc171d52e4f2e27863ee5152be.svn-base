@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="6254" systemVersion="14B25" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES">
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="6247"/>
+        <capability name="Constraints to layout margins" minToolsVersion="6.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner"/>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <tableViewCell contentMode="scaleToFill" selectionStyle="default" indentationWidth="10" rowHeight="88" id="KGk-i7-Jjw" customClass="ScheduleProjectCell">
+            <rect key="frame" x="0.0" y="0.0" width="461" height="66"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+            <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" tableViewCell="KGk-i7-Jjw" id="H2p-sc-9uM">
+                <rect key="frame" x="0.0" y="0.0" width="320" height="43"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="gn6-Wq-d7v">
+                        <rect key="frame" x="10" y="10" width="445" height="24"/>
+                        <fontDescription key="fontDescription" type="system" pointSize="16"/>
+                        <color key="textColor" red="0.97254901960784312" green="0.17647058823529413" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="任务数：" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="TDt-Cv-zM2">
+                        <rect key="frame" x="10" y="38" width="56" height="17"/>
+                        <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                        <color key="textColor" white="0.33333333333333331" alpha="1" colorSpace="calibratedWhite"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="检查：0/0  整改：1" textAlignment="right" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="biP-ke-7wb">
+                        <rect key="frame" x="334" y="38" width="121" height="17.5"/>
+                        <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                        <color key="textColor" white="0.33333333333333331" alpha="1" colorSpace="calibratedWhite"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                </subviews>
+                <constraints>
+                    <constraint firstItem="biP-ke-7wb" firstAttribute="trailing" secondItem="H2p-sc-9uM" secondAttribute="trailingMargin" constant="2" id="3Fy-hn-sEq"/>
+                    <constraint firstItem="gn6-Wq-d7v" firstAttribute="top" secondItem="H2p-sc-9uM" secondAttribute="topMargin" constant="2" id="E4S-W7-RXC"/>
+                    <constraint firstItem="TDt-Cv-zM2" firstAttribute="top" secondItem="gn6-Wq-d7v" secondAttribute="bottom" constant="4" id="Ibm-TO-zn9"/>
+                    <constraint firstAttribute="bottomMargin" secondItem="TDt-Cv-zM2" secondAttribute="bottom" constant="2" id="Wtd-nU-jmT"/>
+                    <constraint firstItem="gn6-Wq-d7v" firstAttribute="trailing" secondItem="H2p-sc-9uM" secondAttribute="trailingMargin" constant="2" id="dBW-kK-aa1"/>
+                    <constraint firstItem="TDt-Cv-zM2" firstAttribute="leading" secondItem="H2p-sc-9uM" secondAttribute="leadingMargin" constant="2" id="eIu-qt-aLe"/>
+                    <constraint firstItem="biP-ke-7wb" firstAttribute="top" secondItem="gn6-Wq-d7v" secondAttribute="bottom" constant="4" id="h0a-kk-RPJ"/>
+                    <constraint firstAttribute="bottomMargin" secondItem="biP-ke-7wb" secondAttribute="bottom" constant="2" id="hQo-zZ-Pv2"/>
+                    <constraint firstItem="gn6-Wq-d7v" firstAttribute="leading" secondItem="H2p-sc-9uM" secondAttribute="leadingMargin" constant="2" id="wcg-1M-IGU"/>
+                </constraints>
+            </tableViewCellContentView>
+            <connections>
+                <outlet property="checkAndRectification" destination="biP-ke-7wb" id="8pD-vv-3tf"/>
+                <outlet property="missionCount" destination="TDt-Cv-zM2" id="EPP-Gx-BYb"/>
+                <outlet property="projectName" destination="gn6-Wq-d7v" id="f8g-AN-pyp"/>
+            </connections>
+            <point key="canvasLocation" x="560.5" y="326"/>
+        </tableViewCell>
+    </objects>
+    <simulatedMetricsContainer key="defaultSimulatedMetrics">
+        <simulatedStatusBarMetrics key="statusBar"/>
+        <simulatedOrientationMetrics key="orientation"/>
+        <simulatedScreenMetrics key="destination" type="retina4"/>
+    </simulatedMetricsContainer>
+</document>

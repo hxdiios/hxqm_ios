@@ -1,0 +1,1019 @@
+//
+//  BaseFunction.m
+//  ZheHome
+//
+//  Created by mac on 12-2-7.
+//  Copyright 2012年 __MyCompanyName__. All rights reserved.
+//  2013年7月24日整理 by cy
+//
+
+#import "BaseFunction.h"
+#import <SystemConfiguration/SystemConfiguration.h>
+#import <CommonCrypto/CommonDigest.h>
+#include <netinet/in.h>
+#import "sys/sysctl.h"
+#import "AppDelegate.h"
+#import "sys/param.h"
+#import "sys/mount.h"
+
+@implementation BaseFunction
+
+- (id)init
+{
+    self = [super init];
+    if (self) {
+        // Initialization code here.
+    }
+    
+    return self;
+}
+
+#pragma mark - 图片调整
+
+//调整图片至指定大小，等比缩放
++(UIImage *)scaleImage:(UIImage *)image toScale:(float)scaleSize
+{
+    UIGraphicsBeginImageContext(CGSizeMake(image.size.width * scaleSize, image.size.height * scaleSize));
+    [image drawInRect:CGRectMake(0, 0, image.size.width * scaleSize, image.size.height * scaleSize)];
+    UIImage *scaledImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return scaledImage;                           
+}
+
+//调整图片至指定大小，以CGSize与图片的最小比例值进行等比缩放
++(UIImage *)scaleImage:(UIImage *)image toSize:(CGSize)scaleSize
+{
+    float w = scaleSize.width / image.size.width; 
+    float h = scaleSize.height / image.size.height;
+    float x = w > h ? h : w;
+    
+    UIGraphicsBeginImageContext(CGSizeMake(image.size.width * x, image.size.height * x));
+    [image drawInRect:CGRectMake(0, 0, image.size.width * x, image.size.height * x)];
+    UIImage *scaledImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return scaledImage; 
+}
+
+
+//调整图片至指定大小，以CGSize与图片的最小比例值进行等比缩放
++(UIImage *)scaleImage:(NSString *)imageName toFixed:(CGSize)scaleSize
+{
+    UIImage *image = [UIImage imageNamed:imageName];
+    return [self scaleImage:image toSize:scaleSize];
+}
+
+//调整图片至指定大小
++(UIImage *)makeImageSize: (NSString *)imageName toFixed:(CGSize)scaleSize
+{
+    UIImage *image = [UIImage imageNamed:imageName];
+    UIImage *scaledImage = [self makeImageSize:image fixed:scaleSize];
+    return scaledImage; 
+}
+
+//调整图片至指定大小
++(UIImage *)makeImageSize: (UIImage *)image fixed:(CGSize)scaleSize
+{
+    UIGraphicsBeginImageContext(scaleSize);
+    [image drawInRect:CGRectMake(0, 0, scaleSize.width, scaleSize.height)];
+    UIImage *scaledImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+
+    return scaledImage; 
+}
+
+/**
+ *  保存图片到本地
+ **/
++(void) saveImageToLocal:(UIImage *)image forKey:(NSString *)key
+{
+    NSUserDefaults *userDef = [NSUserDefaults standardUserDefaults];
+    [userDef setObject:UIImagePNGRepresentation(image) forKey:key];
+}
+
+/**
+ *  截屏
+ **/
++ (UIImage *) getScreenToImage:(UIView *)view area:(CGRect)rect
+{
+    UIGraphicsBeginImageContext(rect.size);
+    [view.layer renderInContext:UIGraphicsGetCurrentContext()];  
+    UIImage *parentImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    
+    if(view.frame.size.width > rect.size.width || view.frame.size.height > rect.size.height)
+    {
+        CGImageRef imageRef = parentImage.CGImage;
+        CGImageRef subImageRef = CGImageCreateWithImageInRect(imageRef, rect);
+    
+        UIGraphicsBeginImageContext(rect.size);
+        CGContextRef context = UIGraphicsGetCurrentContext();
+        CGContextDrawImage(context, rect, subImageRef);
+    
+        UIImage* image = [UIImage imageWithCGImage:subImageRef];
+        UIGraphicsEndImageContext();
+        CFRelease(subImageRef);
+        return image;
+    }else{
+        return parentImage;
+    }
+}
+
+/**
+ *  截断图片到指定大小
+ **/
++ (UIImage *) catOffImage:(UIImage *)image toSize:(CGSize)size
+{
+    CGRect rect = CGRectMake(0, 0, size.width, size.height);
+    CGImageRef subImageRef = CGImageCreateWithImageInRect(image.CGImage, rect);
+    CGRect smallBounds = CGRectMake(0, 0, CGImageGetWidth(subImageRef), CGImageGetHeight(subImageRef));
+    
+    UIGraphicsBeginImageContext(smallBounds.size);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    CGContextDrawImage(context, smallBounds, subImageRef);
+    UIImage* smallImage = [UIImage imageWithCGImage:subImageRef];
+    
+    UIGraphicsEndImageContext();
+    CFRelease(subImageRef);
+    return smallImage;
+}
+
+//保存图片到目录  .../xxx/xxx.jpg
++ (void)saveImage:(UIImage *)image toPath:(NSString *)path {
+    [UIImageJPEGRepresentation(image, 1.0) writeToFile:path atomically:YES];
+}
+
+// 根据图片类型将图片保存到指定目录下
++ (BOOL)saveImage:(UIImage *)image toPath:(NSString *)path withName:(NSString *)imageName andExtension:(NSString *)extension {
+    if ([[extension lowercaseString] isEqualToString:@"png"]) {
+        NSLog(@"保存为png格式 ------------");
+        [UIImagePNGRepresentation(image) writeToFile:[path stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.%@", imageName, @"png"]] options:NSAtomicWrite error:nil];
+    } else if ([[extension lowercaseString] isEqualToString:@"jpg"] || [[extension lowercaseString] isEqualToString:@"jpeg"]) {
+        NSLog(@"保存为jpg格式 ------------");
+        [UIImageJPEGRepresentation(image, 1.0) writeToFile:[path stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.%@", imageName, @"jpg"]] options:NSAtomicWrite error:nil];
+    } else {
+        NSLog(@"Image Save Failed\nExtension: (%@) is not recognized, use (PNG/JPG)", extension);
+        return NO;
+    }
+    NSLog(@"保存图片成功");
+    
+    return YES;
+}
+
+// 将两张图片合成一张图片
++ (UIImage *)compoundImageWithPhoto:(UIImage *)photo andDoodle:(UIImage *)doodle {
+    UIGraphicsBeginImageContext(photo.size);
+    // Draw image1
+    [photo drawInRect:CGRectMake(0, 0, photo.size.width, photo.size.height)];
+    // Draw image2
+    [doodle drawInRect:CGRectMake(0, 0, doodle.size.width, doodle.size.height)];
+    UIImage *compoundImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    
+    return compoundImage;
+}
+
++ (BOOL)compressImage:(UIImage *)image AndSaveToPath:(NSString *)path SaveFileName:(NSString *)fileName andExtension:(NSString *)extension {
+    BOOL result;
+    NSData *imageCompressData;
+    
+    if ([[extension lowercaseString] isEqualToString:@"png"]) {
+        imageCompressData = UIImagePNGRepresentation(image);
+    } else if ([[extension lowercaseString] isEqualToString:@"jpg"] || [[extension lowercaseString] isEqualToString:@"jpeg"]) {
+        imageCompressData = UIImageJPEGRepresentation(image, kCompressionQuality);
+    } else {
+        NSLog(@"Image Save Failed\nExtension: (%@) is not recognized, use (PNG/JPG)", extension);
+        return NO;
+    }
+    
+    NSString *fullPath = [NSString stringWithFormat:@"%@/%@.%@", path, fileName, [extension lowercaseString]];
+    result = [imageCompressData writeToFile:fullPath atomically:YES];
+    
+    return result;
+}
+
+#pragma mark - 网络请求
+
+/**
+ *  判断是否已联网
+ **/
++(BOOL)isNetworkReachable{
+    // Create zero addy
+    struct sockaddr_in zeroAddress;
+    bzero(&zeroAddress, sizeof(zeroAddress));
+    zeroAddress.sin_len = sizeof(zeroAddress);
+    zeroAddress.sin_family = AF_INET;
+    
+    // Recover reachability flags
+    SCNetworkReachabilityRef defaultRouteReachability = SCNetworkReachabilityCreateWithAddress(NULL, (struct sockaddr *)&zeroAddress);
+    SCNetworkReachabilityFlags flags;
+    
+    BOOL didRetrieveFlags = SCNetworkReachabilityGetFlags(defaultRouteReachability, &flags);
+    CFRelease(defaultRouteReachability);
+    
+    if (!didRetrieveFlags)
+    {
+        return NO;
+    }
+    
+    BOOL isReachable = flags & kSCNetworkFlagsReachable;
+    BOOL needsConnection = flags & kSCNetworkFlagsConnectionRequired;
+    return (isReachable && !needsConnection) ? YES : NO;
+} 
+
+
+/**
+ *  HTTP GET 请求
+ **/
++(NSData *) doHttpGet:(NSString *)url
+{
+    NSURL *uri = [NSURL URLWithString:url];
+    NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:uri]; 
+    [request setHTTPMethod: @"GET" ];
+    NSData *returnData = [NSURLConnection sendSynchronousRequest: request returningResponse: nil error: nil];
+    return returnData;
+}
+
+/**
+ *  HTTP POST请求
+ **/
++(NSData *) doHttpPost:(NSString *)url withString:(NSString *)param
+{
+    NSData *data = nil;
+    if(param != nil && [param isEqualToString:@""] == NO){
+        param = [param stringByAddingPercentEscapesUsingEncoding:CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000)];
+        data = [param dataUsingEncoding:CFStringConvertEncodingToNSStringEncoding(kCFStringEncodingGB_18030_2000)];
+    }
+    //调用withParam NSData*类型的方法.
+    return [self doHttpPost:url withParam:data];
+}
+
+
+/**
+ *  HTTP POST请求
+ **/
++(NSData *) doHttpPost:(NSString *)url withParam:(NSData *)param
+{
+    //新建请求
+    NSURL *uri = [NSURL URLWithString:url];    
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:uri cachePolicy:NSURLRequestReloadIgnoringLocalCacheData  timeoutInterval:40.0];
+    //设置请求参数
+    [request setHTTPMethod:@"POST"];
+    [request addValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
+    if(param != nil)
+        [request setHTTPBody:param];
+    //打开访问网络的状态提示
+    //[[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:YES];
+    //请求链接
+    //NSError *error = nil;
+    NSData *retData = [NSURLConnection sendSynchronousRequest:request returningResponse:nil error:nil];
+    //NSLog(@"%d: %@", error.code, error.description);
+    //关闭访问网络的状态提示
+    //[[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:NO];
+    //返回结果
+    return retData;
+}
+
+
+/**
+ *  获取网络图片
+ **/
++(UIImage *) getImageFromUrl:(NSString *)url
+{
+    if(url == nil || [url isEqualToString:@""]){
+        return nil;
+    }
+    url = StringByTrimWhiteSpace(url);
+    NSData *imageData = [[NSData alloc]initWithContentsOfURL:[NSURL URLWithString:url]];
+    UIImage *image =[[UIImage alloc] initWithData:imageData];
+    return image;
+}
+
+/**
+ *  获取网络图片的内容
+ **/
++(NSData *)getImageDataFromUrl:(NSString *)url
+{
+    if(url == nil || [url isEqualToString:@""]){
+        return nil;
+    }
+    
+    NSData *imageData = [[NSData alloc]initWithContentsOfURL:[NSURL URLWithString:url]];
+    return imageData;
+}
+
+#pragma mark - 字符串处理
+
+/**
+ *  利用正则表达示获取字符串的匹配结果
+ **/
++(NSString *) getRegExpressResult:(NSString *)source regExp:(NSString *)regExp
+{
+    NSString *temp = [NSString stringWithFormat:@"%@", source];
+    
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:regExp options:NSRegularExpressionCaseInsensitive error:nil];
+
+    if (regex != nil) {  
+        NSTextCheckingResult *firstMatch = [regex firstMatchInString:temp options:0 range:NSMakeRange(0, [temp length])]; 
+
+        if (firstMatch) {  
+            NSRange resultRange = [firstMatch rangeAtIndex:0];  
+            //截取数据  
+            NSString *result = [temp substringWithRange:resultRange];  
+            //返回结果  
+            return result;
+        }  
+    } 
+    return @"";
+}
+
+/**
+ *  匹配字符串中整个HTML标记的内容
+ **/
++(NSString *) getHtmlText:(NSString *)source tagName:(NSString *)tag
+{
+    NSString *regexp = [NSString stringWithFormat:@"<\\s*%@\\s+([^>]*)\\s*>([^/%@>]*</%@>)?", tag, tag, tag];
+    return [BaseFunction getRegExpressResult:source regExp:regexp];
+}
+
+
+/**
+ *  匹配HTML标记内容中的属性值
+ **/
++(NSString *) getHtmlTagAttr:(NSString *)tagContext attrName:(NSString *)attr
+{
+    NSString *regexp = [NSString stringWithFormat: @"%@\\s*=\\s*?(['\"][^'\"]*?)['\"]", attr];
+    NSString *result = [BaseFunction getRegExpressResult:tagContext regExp:regexp];
+    //替换
+    NSString *oldstr = [NSString stringWithFormat:@"%@=\"", attr];
+    NSString *newstr = [result stringByReplacingOccurrencesOfString:oldstr withString:@""];
+    newstr = [newstr substringToIndex:[newstr length] - 1];
+    return newstr;
+}
+
+/**
+ *  获取HTML标记的文本
+ **/
++(NSString *) getHTmlTagText:(NSString *)tagContext
+{
+    NSString *regExp = @"<\\s*\\w+\\s+([^>]*)\\s*>";
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:regExp options:NSRegularExpressionCaseInsensitive error:nil];
+    
+    NSTextCheckingResult *firstMatch = [regex firstMatchInString:tagContext options:0 range:NSMakeRange(0, [tagContext length])]; 
+    NSRange resultRange = [firstMatch rangeAtIndex:0];  
+    NSString *newStr = [tagContext substringFromIndex:resultRange.length];
+    
+    regExp = @"</\\w+\\s*>";
+    regex = [NSRegularExpression regularExpressionWithPattern:regExp options:NSRegularExpressionCaseInsensitive error:nil];
+    firstMatch = [regex firstMatchInString:newStr options:0 range:NSMakeRange(0, [newStr length])]; 
+    resultRange = [firstMatch rangeAtIndex:0];
+    
+    return [newStr substringToIndex:resultRange.location];
+}
+
+/**
+ *  替换HTML标签
+ **/
++(NSString *) replaceHtmlTag:(NSString *)source
+{
+    source = [BaseFunction replaceString:source byRegexp:@"<[^>]+>"];
+    return [BaseFunction replaceString:source byRegexp:@"</[^>]+>"];
+}
+
++(NSString *) replaceString:(NSString *)source byRegexp:(NSString *)exp
+{
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:exp options:0 error:nil];
+    
+    if(regex == nil)
+        return source;
+    
+    NSString *ret = [NSString stringWithFormat:@"%@", source];
+    NSArray *array = [regex matchesInString:ret options:NSMatchingReportProgress range:NSMakeRange(0, [ret length])];
+    for(int i = (int)[array count] - 1; i >= 0; i--)
+    {
+        NSTextCheckingResult *tcr = [array objectAtIndex:i];
+        NSRange range = [tcr range];
+        ret = [ret stringByReplacingCharactersInRange:range withString:@""];
+    }
+    return ret;
+}
+
+/**
+ *  正则验证
+ **/
++(BOOL) string:(NSString *)source MatchRegex:(NSString *) exp
+{
+    NSPredicate *predicate = [NSPredicate predicateWithFormat:@"SELF MATCHES %@", exp];
+    return [predicate evaluateWithObject:source];
+}
+
+
+/**
+ *  获取字符串中字母和数字的个数
+ **/
++ (DSNumberData) getAlphanumericOfString:(NSString *)text
+{
+    NSString *reg = @"[a-z0-9]+";
+    NSString *reg2 = @"[A-Z]+";
+    DSNumberData d;
+    d.x = [BaseFunction getMatchCount:text inRegx:reg];
+    d.y = [BaseFunction getMatchCount:text inRegx:reg2];
+    d.z = [text length] - d.x - d.y;
+    return d;
+}
+
+/**
+ *  获取正则表达式中匹配的个数
+ **/
++ (NSInteger) getMatchCount:(NSString *)text inRegx:(NSString *)exp
+{
+    NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:exp options:0 error:nil];
+    
+    int count = 0;
+    if (regex != nil) {  
+        NSArray *array = [regex matchesInString:text options:NSMatchingReportProgress range:NSMakeRange(0, [text length])];
+        
+        for(int i=0; i< [array count]; i++)
+        {
+            NSTextCheckingResult *tcr = [array objectAtIndex:i];
+            NSRange range = [tcr range];
+            count += range.length;
+        }
+    } 
+    return count;
+}
+
+
+/**
+ *  替换XML敏感字符
+ **/
++ (NSString *) replaceXMLSensitiveLettler:(NSString *)text
+{
+    NSString *tmp = [text stringByReplacingOccurrencesOfString:@"&" withString:@"&amp;"];
+    tmp = [tmp stringByReplacingOccurrencesOfString:@"<" withString:@"&lt;"];
+    tmp = [tmp stringByReplacingOccurrencesOfString:@">" withString:@"&gt;"];
+    return tmp;
+}
+
+/**
+ *  分离坐标
+ **/
++(void) separateCoordinate:(NSString *)coord lat:(NSString **)lat lng:(NSString **)lng
+{
+    *lng = @"", *lat = @"";
+    //验证数据的合法性
+    if(coord == nil){ return; }
+    coord = StringByTrimWhiteSpace(coord);
+    if(IsStringEmpty(coord)){
+        return;
+    }
+    
+    //将坐标分开
+    NSArray *coordArray = [coord componentsSeparatedByString:@","];
+    if([coordArray count]>0)
+        *lng = [coordArray objectAtIndex:0];
+    if([coordArray count]>1)
+        *lat = [coordArray objectAtIndex:1];
+}
+
+
+/**
+ *  从文件路径中分解出文件名
+ **/
++ (NSString *) splitFileNameForPath:(NSString *)filePath
+{
+    NSArray *array = [filePath componentsSeparatedByString:@"/"];
+    return [array lastObject];
+}
+
+
+/**
+ *  从文件路径中分解出文件的扩展名
+ **/
++ (NSString *) getFileExtension:(NSString *)filePath
+{
+    NSString *fileName = [self splitFileNameForPath:filePath];
+    NSArray *array = [fileName componentsSeparatedByString:@"."];
+    return [NSString stringWithFormat:@".%@",[array lastObject]];
+}
+
+/**
+ *  获取设备型号
+ **/
++ (NSString *) platform
+{
+    size_t size;
+    sysctlbyname("hw.machine", NULL, &size, NULL, 0);
+    char *machine = (char *)malloc(size);
+    sysctlbyname("hw.machine", machine, &size, NULL, 0);
+    NSString *platform = [NSString stringWithCString:machine encoding:NSUTF8StringEncoding];
+    free(machine);
+    NSRange range = [platform rangeOfString:@","];
+    return [platform substringToIndex:range.location];
+}
+
+/**
+ *  MD5加密
+ **/
++ (NSString *)md5Digest:(NSString *)str
+{
+    const char *cStr = [str UTF8String];
+    unsigned char result[16];
+    CC_MD5(cStr, strlen(cStr), result); // This is the md5 call
+    return [NSString stringWithFormat:
+            @"%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+            result[0], result[1], result[2], result[3],
+            result[4], result[5], result[6], result[7],
+            result[8], result[9], result[10], result[11],
+            result[12], result[13], result[14], result[15]];
+}
+
+//判断是否为整形
++ (BOOL)isPureInt:(NSString *)string{
+    NSScanner* scan = [NSScanner scannerWithString:string];
+    int val;
+    return [scan scanInt:&val] && [scan isAtEnd];
+}
+
+//判断是否为浮点形
++ (BOOL)isPureFloat:(NSString *)string{
+    NSScanner* scan = [NSScanner scannerWithString:string];
+    float val;
+    return [scan scanFloat:&val] && [scan isAtEnd];
+}
+
+/**
+ *  版本比较
+ **/
++ (BOOL)isVersion:(NSString*)versionA biggerThanVersion:(NSString*)versionB
+{
+    NSArray *arrayNow = [versionB componentsSeparatedByString:@"."];
+    NSArray *arrayNew = [versionA componentsSeparatedByString:@"."];
+    BOOL isBigger = NO;
+    NSInteger i = arrayNew.count > arrayNow.count? arrayNow.count : arrayNew.count;
+    NSInteger j = 0;
+    BOOL hasResult = NO;
+    for (j = 0; j < i; j ++) {
+        NSString* strNew = [arrayNew objectAtIndex:j];
+        NSString* strNow = [arrayNow objectAtIndex:j];
+        if ([strNew integerValue] > [strNow integerValue]) {
+            hasResult = YES;
+            isBigger = YES;
+            break;
+        }
+        if ([strNew integerValue] < [strNow integerValue]) {
+            hasResult = YES;
+            isBigger = NO;
+            break;
+        }
+    }
+    if (!hasResult) {
+        if (arrayNew.count > arrayNow.count) {
+            NSInteger nTmp = 0;
+            NSInteger k = 0;
+            for (k = arrayNow.count; k < arrayNew.count; k++) {
+                nTmp += [[arrayNew objectAtIndex:k]integerValue];
+            }
+            if (nTmp > 0) {
+                isBigger = YES;
+            }
+        }
+    }
+    return isBigger;
+}
+
+#pragma mark - 阴影、圆角、边框、动画、view
+
+/**
+ *  文字高度
+ **/
++ (CGSize)labelSizeWithText:(NSString *)text font:(UIFont *)font constrainedToSize:(CGSize)size {
+    if ([[[UIDevice currentDevice] systemVersion] floatValue] >= 7.0){
+        //IOS 7.0 以上
+        NSDictionary *attributes = [NSDictionary dictionaryWithObjectsAndKeys:font,  NSFontAttributeName, nil];
+        size =[text boundingRectWithSize:size
+                                 options:NSStringDrawingUsesLineFragmentOrigin | NSStringDrawingUsesFontLeading
+                              attributes:attributes
+                                 context:nil].size;
+        size.width = ceilf(size.width);
+        size.height = ceilf(size.height);
+    }
+    /*else {
+        size = [text sizeWithFont:font constrainedToSize:size lineBreakMode:NSLineBreakByWordWrapping];
+    }*/
+    return size;
+}
+
++ (CGSize)labelSizeWithText:(NSString *)text font:(UIFont *)font {
+    CGSize size;
+    if ([[[UIDevice currentDevice] systemVersion] floatValue] >= 7.0){
+        //IOS 7.0 以上
+        NSDictionary *attributes = [NSDictionary dictionaryWithObjectsAndKeys:font,  NSFontAttributeName, nil];
+        size = [text sizeWithAttributes:attributes];
+        size.width = ceilf(size.width);
+        size.height = ceilf(size.height);
+    }else{
+        //size = [text sizeWithFont:font];
+        size = [text sizeWithAttributes: @{NSFontAttributeName:font}];
+    }
+    return size;
+}
+/**
+ *	设置view圆角
+ *
+ *	@param 	cornerRadius 	圆角大小
+ *	@param 	view
+ */
++ (void)setCornerRadius:(float)cornerRadius view:(UIView *)view {
+    view.layer.cornerRadius = cornerRadius;
+    view.layer.masksToBounds = YES;
+}
+
+/**
+ *	设置view边框
+ *
+ *	@param 	width 	边框宽度
+ *	@param 	color 	边框颜色
+ *	@param 	view
+ */
++ (void)setBorderWidth:(float)width color:(UIColor *)color view:(UIView *)view {
+    view.layer.borderColor = color.CGColor;
+    view.layer.borderWidth = width;
+}
+
+/**
+ *	设置view阴影
+ *
+ *	@param 	color 	颜色
+ *	@param 	opacity 不透明度
+ *	@param 	radius 	阴影半径
+ *	@param 	offset 	偏移
+ *	@param 	view
+ */
++ (void)setShadowByColor:(UIColor *)color opacity:(float)opacity radius:(float)radius  offset:(CGSize)offset view:(UIView *)view {
+    view.layer.shadowPath = [[UIBezierPath bezierPathWithRect:view.bounds] CGPath];
+    view.layer.shadowColor = color.CGColor;
+    view.layer.shadowOpacity = opacity;
+    view.layer.shadowRadius = radius;
+    view.layer.shadowOffset = offset;
+}
+
+//输入框通用圆角、边框
++ (void)setContentViewBorderAndCorner:(UIView *)view {
+    [self setBorderWidth:1.0 color:ColorWithWhite(0.85) view:view];
+    [self setCornerRadius:4.0 view:view];
+}
+
+//动画
++ (void)fadeIn:(UIView *)view {
+    view.alpha = 0.0;
+    [UIView animateWithDuration:0.2 animations:^{
+        view.alpha = 1.0;
+    }];
+}
+
++ (void)fadeOut:(UIView *)view {
+    view.alpha = 1.0;
+    [UIView animateWithDuration:0.2 animations:^{
+        view.alpha = 0.0;
+    }];
+}
+
+/**
+ *  显示一个提示框
+ **/
++ (void) showAlertMsg:(NSString *)msg title:(NSString *)title {
+    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:title message:msg delegate:nil cancelButtonTitle:@"确定" otherButtonTitles: nil];
+    [alert show];
+}
+
+#pragma mark - 电话号码
+
++ (BOOL) isEmailAddress:(NSString *)emailAddress {
+    NSString *email = @"^[\\w-]+(\\.[\\w-]+)*@[\\w-]+(\\.[\\w-]+)+$";
+    return [BaseFunction string:emailAddress MatchRegex:email];
+}
+
+// 判断是否为手机号码
++ (BOOL)isMobileNumber:(NSString *)mobileNum
+{
+    /**
+     * 手机号码
+     * 移动：134[0-8],135,136,137,138,139,150,151,157,158,159,182,187,188
+     * 联通：130,131,132,152,155,156,185,186
+     * 电信：133,1349,153,180,189
+     */
+    NSString * MOBILE = @"^1(3[0-9]|5[0-35-9]|8[025-9])\\d{8}$";
+    /**
+     * 大陆地区固话及小灵通
+     * 区号：010,020,021,022,023,024,025,027,028,029
+     * 号码：七位或八位
+     */
+    return [BaseFunction string:mobileNum MatchRegex:MOBILE];
+}
+
+// 判断是否移动手机号码
++ (BOOL) isChinaMobile:(NSString *)mobileNum
+{
+    /**
+     * 中国移动：China Mobile
+     * 134[0-8],135,136,137,138,139,150,151,157,158,159,182,187,188
+     */
+    NSString * CM = @"^1(34[0-8]|(3[5-9]|5[017-9]|8[278])\\d)\\d{7}$";
+    return [BaseFunction string:mobileNum MatchRegex:CM];
+}
+
+// 判断是否联通手机号码
++ (BOOL) isChinaUnicom:(NSString *)mobileNum
+{
+    /**
+     * 中国联通：China Unicom
+     * 130,131,132,152,155,156,185,186
+     */
+    NSString * CU = @"^1(3[0-2]|5[256]|8[56])\\d{8}$";
+    return [BaseFunction string:mobileNum MatchRegex:CU];
+}
+
+// 判断是否电信手机号码
++ (BOOL) isChinaTelecom:(NSString *)mobileNum
+{
+    /**
+     * 中国电信：China Telecom
+     * 133,1349,153,180,189
+     */
+    NSString * CT = @"^1((33|53|8[09])[0-9]|349)\\d{7}$";
+    return [BaseFunction string:mobileNum MatchRegex:CT];
+}
+
+
+#pragma mark - 文件目录
+
+//Documents目录,iTunes备份和恢复的时候会包括此目录，程序退出后不删除
++ (NSString *)pathForDocumentsDir{
+    return [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+}
+
+//tmp目录，存放临时文件，不会备份，程序退出后删除
++ (NSString *)pathForTmpDir{
+    return [NSHomeDirectory() stringByAppendingString:@"/tmp/"];
+}
+
+//Library/Caches目录，缓存目录，不会备份，程序退出后不删除
++ (NSString *)pathForCachesDir{
+    return [NSHomeDirectory() stringByAppendingString:@"/Library/Caches/"];
+}
+
+//单个文件的大小
++ (long long) fileSizeAtPath:(NSString*) filePath {
+    NSFileManager *manager = [NSFileManager defaultManager];
+    if ([manager fileExistsAtPath:filePath]){
+        return [[manager attributesOfItemAtPath:filePath error:nil] fileSize];
+    }
+    return 0;
+}
+
++ (BOOL)deleteFileAtPath:(NSString *)path {
+    NSError *error;
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    BOOL deleteResult = [fileManager removeItemAtPath:path error:&error];
+    NSLog(@"removeItemAtPath:path, error = %@", error);
+    NSLog(@"删除文件：%@", deleteResult ? @"成功" : @"失败");
+    
+    return deleteResult;
+}
+
+// 获取当前的文件路径，解决应用包名发生改变之后找不到文件的问题
++ (NSString *)getCurrentPathWithFilePath:(NSString *)filePath {
+    NSString *shortPath = [filePath substringFromIndex:[filePath rangeOfString:@"/Documents/"].location + 10];
+    NSString *fileNewPath = [NSString stringWithFormat:@"%@%@", PATH_OF_DOCUMENT, shortPath];
+    
+    return fileNewPath;
+}
+
+#pragma mark - 其它函数
+
+/**
+ *  取一个随机整数
+ **/
++ (int)random { 
+    return arc4random();
+}
+
+/**
+ *  取一个随机整数 0~x-1
+ **/
++ (int)random:(int)x {
+    return arc4random() % x;
+}
+
+/**
+ *  获取当前时间
+ **/
++ (int) getCurrentTime
+{
+    NSDate *date = [NSDate date];
+    NSString *num = [NSString stringWithFormat:@"%.0f",[date timeIntervalSince1970]];
+    return [num intValue];
+}
+
+/**
+ * 按照格式：“yyyy-MM-dd HH:mm:ss”获取当前的时间
+ */
++ (NSString *)getToday {
+    NSDate *currentDate = [NSDate date];
+    NSDateFormatter *dateformatter = [[NSDateFormatter alloc] init];
+    [dateformatter setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
+    NSString *currDateString = [dateformatter stringFromDate:currentDate];
+    
+    return currDateString;
+}
+
+/**
+ * 按照格式：“yyMMddHHmmss”获取当前的时间
+ */
++ (NSString *)getPhotoNameWithCurrentTime {
+    NSDate *currentDate = [NSDate date];
+    NSDateFormatter *dateformatter = [[NSDateFormatter alloc] init];
+    [dateformatter setDateFormat:@"yyMMddHHmmss"];
+    NSString *currDateString = [dateformatter stringFromDate:currentDate];
+    
+    return currDateString;
+}
+
++ (NSDate *)dateFromString:(NSString *)dateStr {
+    NSDateFormatter *inputFormatter = [[NSDateFormatter alloc] init];
+    [inputFormatter setDateFormat:@"yyyy-MM-dd"];
+    [inputFormatter setTimeZone:[NSTimeZone defaultTimeZone]];
+    //标准时间
+    return [inputFormatter dateFromString:dateStr];
+}
+
++ (NSDate *)dateFromString:(NSString *)dateStr dateFormat:(NSString *)dateFormat {
+    NSDateFormatter *inputFormatter = [[NSDateFormatter alloc] init];
+    [inputFormatter setDateFormat:dateFormat];
+    [inputFormatter setTimeZone:[NSTimeZone defaultTimeZone]];
+    //标准时间
+    return [inputFormatter dateFromString:dateStr];
+}
+
+// 将当前时间转成字符串，格式：yyyy-MM-dd
++ (NSString *)stringFromCurrent {
+    NSDate *currentDate = [NSDate date];
+    NSDateFormatter *dateformatter = [[NSDateFormatter alloc] init];
+    [dateformatter setDateFormat:@"yyyy-MM-dd"];
+    NSString *currDateString = [dateformatter stringFromDate:currentDate];
+    
+    return currDateString;
+}
+
+// 获取当前时间的字典
++ (NSDictionary *)getCurrentDateDictionary {
+    NSDate *currentDate = [NSDate date];
+    NSCalendar* calendar = [NSCalendar currentCalendar];
+    // Get necessary date components
+    NSDateComponents* components = [calendar components:NSYearCalendarUnit|NSMonthCalendarUnit|NSDayCalendarUnit fromDate:currentDate];
+    NSInteger month = [components month];
+    NSInteger day = [components day];
+    NSString *yearString = [NSString stringWithFormat:@"%ld", [components year]];
+    NSString *monthString = month < 10 ? [NSString stringWithFormat:@"0%ld", month] : [NSString stringWithFormat:@"%ld", month];
+    NSString *dayString = day < 10 ? [NSString stringWithFormat:@"0%ld", day] : [NSString stringWithFormat:@"%ld", day];
+    
+    NSArray *objects = [NSArray arrayWithObjects:yearString, monthString, dayString, nil];
+    NSArray *keys = [NSArray arrayWithObjects:@"YEAR", @"MONTH", @"DAY", nil];
+    
+    return [NSDictionary dictionaryWithObjects:objects forKeys:keys];
+}
+
++ (NSTimeInterval)timeIntervalSinceNow:(NSDate *)date {
+    NSTimeInterval interval = [date timeIntervalSinceNow];
+    NSLog(@"%f",interval);
+    return interval;
+}
+
+// 获得屏幕指定控件图像
++ (UIImage *)imageFromView:(UIView *) theView
+{
+    UIGraphicsBeginImageContext(theView.frame.size);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    [theView.layer renderInContext:context];
+    UIImage *theImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return theImage;
+}
+
+// 计算两个经纬度之间的距离
++ (NSString *)calculateDistance:(float)longitude latitude:(float)latitude longitude2:(NSString *)longitude2 latitude2:(NSString *)latitude2 {
+    NSString *result;
+    
+    double lo2 = [longitude2 doubleValue];
+    double la2 = [latitude2 doubleValue];
+    double radLat1 = [self rad:latitude];
+    double radLat2 = [self rad:la2];
+    double a = radLat1 - radLat2;
+    double b = [self rad:longitude] - [self rad:lo2];
+    double v = 2 * asin(sqrt(pow(sin(a / 2), 2) + cos(radLat1) * cos(radLat2) * pow(sin(b / 2), 2)));
+    
+    v = v * 6378137.0;
+    v = round(v * 10000) / 10000;
+    if (v > 1000) {
+        result = [NSString stringWithFormat:@"%.3fKM", v / 1000];
+    } else {
+        result = [NSString stringWithFormat:@"%.3fM", v];
+    }
+    
+    return result;
+}
+
++ (double)rad:(double)d {
+    return d * M_PI / 180.0;
+}
+
+// 获得qm目录的路径
++ (NSString *)getQMSystemFolderPath {
+    NSString *qmFolderPath = [NSString stringWithFormat:@"%@%@", PATH_OF_DOCUMENT, @"/qm"];
+    return qmFolderPath;
+}
+
+// 获得doodlePic目录的路径
++ (NSString *)getDoodlePicSystemFolderPath {
+    NSString *doodlePicFolderPath = [NSString stringWithFormat:@"%@%@", [self getQMSystemFolderPath], @"/doodlePic"];
+    return doodlePicFolderPath;
+}
+
+// 获得mergedPic目录的路径
++ (NSString *)getMergedPicSystemFolderPath {
+    NSString *mergedPicFolderPath = [NSString stringWithFormat:@"%@%@", [self getQMSystemFolderPath], @"/mergedPic"];
+    return mergedPicFolderPath;
+}
+
+//创建数据库
++ (FMDatabase *) createDB {
+    //获取document目录
+    NSMutableString *documentPath = PATH_OF_DOCUMENT;
+    NSString *dbPath = [documentPath stringByAppendingPathComponent:@"hxqm.sqlite"];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    FMDatabase *db;
+    if(![fileManager fileExistsAtPath:dbPath]) {
+        //数据库未创建时，创建数据库
+        db = [[FMDatabase alloc] initWithPath:dbPath];
+        [BaseFunction createTables : db];
+    } else {
+        //已创建，获取db实例
+        db = [FMDatabase databaseWithPath:dbPath];
+    }
+    
+    return db;
+}
+
+//添加数据库用到的表
++ (void) createTables :(FMDatabase *) db {
+    NSString * sqlFilePath = [[NSBundle mainBundle] pathForResource:@"create" ofType:@"sql"];
+    NSString *content = [NSString stringWithContentsOfFile:sqlFilePath encoding:NSUTF8StringEncoding error:nil];
+    NSArray *sqls = [content componentsSeparatedByString:@";"];
+    [db open];
+    for(NSString *sql in sqls) {
+        [db executeStatements:sql];
+    }
+    [db close];
+}
+
++ (FMDatabaseQueue *) createDBQueue {
+    //获取document目录
+    NSMutableString *documentPath = PATH_OF_DOCUMENT;
+    NSString *dbPath = [documentPath stringByAppendingPathComponent:@"hxqm.sqlite"];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    FMDatabase *db;
+    FMDatabaseQueue *queue;
+    if(![fileManager fileExistsAtPath:dbPath]) {
+        //数据库未创建时，创建数据库
+        db = [[FMDatabase alloc] initWithPath:dbPath];
+        [BaseFunction createTables : db];
+        queue = [[FMDatabaseQueue alloc] initWithPath:dbPath];
+    } else {
+        //已创建，获取db实例
+        queue = [[FMDatabaseQueue alloc] initWithPath:dbPath];
+    }
+    return queue;
+}
+
++ (float) avaliableSpace
+{
+    struct statfs buf;
+    long long freespace = -1;
+    if(statfs("/var", &buf) >= 0){
+        freespace = (long long)(buf.f_bsize * buf.f_bfree);
+    }
+    return freespace/1024/1024;
+}
+
++ (NSString *) makeJabberdID : (NSString *) uname {
+    NSString *ip = XMPP_IP;
+    NSString *jid = [NSString stringWithFormat:@"%@@%@",uname,ip];
+    return jid;
+}
+
++ (NSString *) getErrorLogFolderPath {
+    NSString *errFolderPath = [NSString stringWithFormat:@"%@%@", PATH_OF_DOCUMENT, @"/err"];
+    return errFolderPath;
+}
+
+@end

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="6254" systemVersion="14C109" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES">
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="6247"/>
+        <capability name="Constraints to layout margins" minToolsVersion="6.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner"/>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <tableViewCell contentMode="scaleToFill" selectionStyle="default" indentationWidth="10" id="KGk-i7-Jjw" customClass="MajorCell">
+            <rect key="frame" x="0.0" y="0.0" width="320" height="44"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+            <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" tableViewCell="KGk-i7-Jjw" id="H2p-sc-9uM">
+                <rect key="frame" x="0.0" y="0.0" width="320" height="43"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="8zi-lC-bnT">
+                        <rect key="frame" x="8" y="8" width="5" height="27.5"/>
+                        <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
+                        <constraints>
+                            <constraint firstAttribute="width" constant="5" id="HlX-R7-Gly"/>
+                        </constraints>
+                    </view>
+                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="zf4-Wt-5XQ">
+                        <rect key="frame" x="21" y="11" width="42" height="20.5"/>
+                        <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                    <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="icon_expand.png" translatesAutoresizingMaskIntoConstraints="NO" id="1zs-Em-lhb">
+                        <rect key="frame" x="290" y="11" width="22" height="22"/>
+                    </imageView>
+                    <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="dqp-OU-C15">
+                        <rect key="frame" x="0.0" y="0.0" width="320" height="44"/>
+                        <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="calibratedWhite"/>
+                        <state key="normal">
+                            <color key="titleShadowColor" white="0.5" alpha="1" colorSpace="calibratedWhite"/>
+                        </state>
+                    </button>
+                </subviews>
+                <constraints>
+                    <constraint firstItem="dqp-OU-C15" firstAttribute="top" secondItem="H2p-sc-9uM" secondAttribute="topMargin" constant="-8" id="1Sb-Fb-7H6"/>
+                    <constraint firstItem="1zs-Em-lhb" firstAttribute="trailing" secondItem="H2p-sc-9uM" secondAttribute="trailingMargin" id="2VH-qS-eLB"/>
+                    <constraint firstItem="8zi-lC-bnT" firstAttribute="top" secondItem="H2p-sc-9uM" secondAttribute="topMargin" id="KPO-sr-ztj"/>
+                    <constraint firstAttribute="trailingMargin" secondItem="dqp-OU-C15" secondAttribute="trailing" constant="-8" id="Stz-uk-Z5H"/>
+                    <constraint firstItem="zf4-Wt-5XQ" firstAttribute="leading" secondItem="8zi-lC-bnT" secondAttribute="trailing" constant="8" id="a0K-F6-wmH"/>
+                    <constraint firstItem="8zi-lC-bnT" firstAttribute="leading" secondItem="H2p-sc-9uM" secondAttribute="leadingMargin" id="fH0-yz-amM"/>
+                    <constraint firstAttribute="bottomMargin" secondItem="8zi-lC-bnT" secondAttribute="bottom" id="gTl-sK-8Tx"/>
+                    <constraint firstAttribute="bottomMargin" secondItem="dqp-OU-C15" secondAttribute="bottom" constant="-8" id="lc3-os-p4u"/>
+                    <constraint firstItem="dqp-OU-C15" firstAttribute="leading" secondItem="H2p-sc-9uM" secondAttribute="leadingMargin" constant="-8" id="weo-D2-7ZH"/>
+                    <constraint firstAttribute="centerY" secondItem="1zs-Em-lhb" secondAttribute="centerY" id="wv4-0w-ijM"/>
+                    <constraint firstAttribute="centerY" secondItem="zf4-Wt-5XQ" secondAttribute="centerY" id="zcq-E1-zVO"/>
+                </constraints>
+            </tableViewCellContentView>
+            <connections>
+                <outlet property="headerBtn" destination="dqp-OU-C15" id="gUL-tF-zbV"/>
+                <outlet property="leftColorView" destination="8zi-lC-bnT" id="uLc-2P-Fye"/>
+                <outlet property="majorName" destination="zf4-Wt-5XQ" id="jD3-uZ-A75"/>
+                <outlet property="rightImg" destination="1zs-Em-lhb" id="RAD-ue-xPW"/>
+            </connections>
+            <point key="canvasLocation" x="364" y="314"/>
+        </tableViewCell>
+    </objects>
+    <resources>
+        <image name="icon_expand.png" width="22" height="22"/>
+    </resources>
+    <simulatedMetricsContainer key="defaultSimulatedMetrics">
+        <simulatedStatusBarMetrics key="statusBar"/>
+        <simulatedOrientationMetrics key="orientation"/>
+        <simulatedScreenMetrics key="destination" type="retina4"/>
+    </simulatedMetricsContainer>
+</document>

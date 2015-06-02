@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="6254" systemVersion="14C109" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES">
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="6247"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner" customClass="AboutViewController">
+            <connections>
+                <outlet property="versionLabel" destination="SmT-d8-UOy" id="xRC-x1-fqo"/>
+                <outlet property="view" destination="i5M-Pr-FkT" id="sfx-zR-JGt"/>
+            </connections>
+        </placeholder>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <view clearsContextBeforeDrawing="NO" contentMode="scaleToFill" id="i5M-Pr-FkT">
+            <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <imageView userInteractionEnabled="NO" contentMode="scaleToFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="about_logo.png" translatesAutoresizingMaskIntoConstraints="NO" id="tZW-O1-kjh">
+                    <rect key="frame" x="75" y="60" width="225" height="42"/>
+                    <constraints>
+                        <constraint firstAttribute="height" constant="42" id="Ied-bP-ers"/>
+                        <constraint firstAttribute="width" constant="225" id="xA4-bd-U5z"/>
+                    </constraints>
+                </imageView>
+                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="智检通" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="yEJ-s9-YCQ">
+                    <rect key="frame" x="139" y="152" width="96" height="38.5"/>
+                    <fontDescription key="fontDescription" type="boldSystem" pointSize="32"/>
+                    <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                    <nil key="highlightedColor"/>
+                </label>
+                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="For iOS V1.0.0" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="SmT-d8-UOy">
+                    <rect key="frame" x="132" y="210" width="111.5" height="20.5"/>
+                    <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                    <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                    <nil key="highlightedColor"/>
+                </label>
+                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="　　中国移动智检通是面向温州移动工程现场管理人员的官方软件，为您提供快速便捷的功能，方便您随时随地完成您的工程。" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="vsR-TV-KH1">
+                    <rect key="frame" x="20" y="255" width="335" height="50.5"/>
+                    <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                    <color key="textColor" cocoaTouchSystemColor="darkTextColor"/>
+                    <nil key="highlightedColor"/>
+                </label>
+                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="中国移动　版权所有" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="XSF-tK-XjE">
+                    <rect key="frame" x="133" y="615.5" width="108" height="14.5"/>
+                    <fontDescription key="fontDescription" type="system" pointSize="12"/>
+                    <color key="textColor" white="0.66666666666666663" alpha="1" colorSpace="calibratedWhite"/>
+                    <nil key="highlightedColor"/>
+                </label>
+                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Copyright© 2015 China Mobile. All Rights Reserved" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="gD2-b3-lsl">
+                    <rect key="frame" x="66" y="640" width="242.5" height="12"/>
+                    <fontDescription key="fontDescription" type="system" pointSize="10"/>
+                    <color key="textColor" white="0.66666666666666663" alpha="1" colorSpace="calibratedWhite"/>
+                    <nil key="highlightedColor"/>
+                </label>
+            </subviews>
+            <color key="backgroundColor" red="0.9137254901960784" green="0.9137254901960784" blue="0.9137254901960784" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+            <constraints>
+                <constraint firstAttribute="centerX" secondItem="yEJ-s9-YCQ" secondAttribute="centerX" id="2lH-HI-abp"/>
+                <constraint firstItem="vsR-TV-KH1" firstAttribute="top" secondItem="SmT-d8-UOy" secondAttribute="bottom" constant="25" id="32C-Vq-q6g"/>
+                <constraint firstAttribute="bottom" secondItem="gD2-b3-lsl" secondAttribute="bottom" constant="15" id="62q-2K-jdi"/>
+                <constraint firstItem="yEJ-s9-YCQ" firstAttribute="top" secondItem="tZW-O1-kjh" secondAttribute="bottom" constant="50" id="8kh-w6-IgG"/>
+                <constraint firstAttribute="centerX" secondItem="tZW-O1-kjh" secondAttribute="centerX" id="LWL-rL-AWT"/>
+                <constraint firstAttribute="centerX" secondItem="gD2-b3-lsl" secondAttribute="centerX" id="NpK-fB-Wdm"/>
+                <constraint firstAttribute="centerX" secondItem="XSF-tK-XjE" secondAttribute="centerX" id="U4N-0F-nF2"/>
+                <constraint firstItem="gD2-b3-lsl" firstAttribute="top" secondItem="XSF-tK-XjE" secondAttribute="bottom" constant="10" id="gJi-lu-t60"/>
+                <constraint firstItem="SmT-d8-UOy" firstAttribute="top" secondItem="yEJ-s9-YCQ" secondAttribute="bottom" constant="20" id="mwC-cn-1GB"/>
+                <constraint firstItem="tZW-O1-kjh" firstAttribute="top" secondItem="i5M-Pr-FkT" secondAttribute="top" constant="60" id="pd5-Ih-OvJ"/>
+                <constraint firstAttribute="centerX" secondItem="SmT-d8-UOy" secondAttribute="centerX" id="wdC-L0-qQE"/>
+                <constraint firstItem="vsR-TV-KH1" firstAttribute="leading" secondItem="i5M-Pr-FkT" secondAttribute="leading" constant="20" id="xaz-N7-jJi"/>
+                <constraint firstAttribute="trailing" secondItem="vsR-TV-KH1" secondAttribute="trailing" constant="20" id="yt4-wb-AAf"/>
+                <constraint firstAttribute="centerX" secondItem="vsR-TV-KH1" secondAttribute="centerX" id="zzC-Sw-DUE"/>
+            </constraints>
+            <simulatedScreenMetrics key="simulatedDestinationMetrics" type="retina47"/>
+            <point key="canvasLocation" x="468.5" y="371.5"/>
+        </view>
+    </objects>
+    <resources>
+        <image name="about_logo.png" width="225" height="42"/>
+    </resources>
+    <simulatedMetricsContainer key="defaultSimulatedMetrics">
+        <simulatedStatusBarMetrics key="statusBar"/>
+        <simulatedOrientationMetrics key="orientation"/>
+        <simulatedScreenMetrics key="destination" type="retina4"/>
+    </simulatedMetricsContainer>
+</document>

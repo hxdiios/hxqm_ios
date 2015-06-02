@@ -1,0 +1,134 @@
+//
+//  ContentManager.h
+//  hxqm_mobile
+//
+//  Created by 刘志 on 15/1/14.
+//  Copyright (c) 2015年 huaxin. All rights reserved.
+//
+
+#import "ClientDBManager.h"
+
+@interface ContentManager : ClientDBManager
+
+
+- (NSDictionary *) getContentDetialInfo : (NSString *) boContentId userid : (NSString *) userid;
+
+/**
+ * 批量保存分段
+ *
+ * @param selectionList
+ * @return
+ * @author hubo
+ */
+- (BOOL) saveDownloadContents : (NSArray *) downloadContentsList userid : (NSString *) userid;
+
+- (BOOL) getContentExistState : (NSDictionary *) jsonObject userid : (NSString *) userid;
+
+- (BOOL) updateContent : (NSDictionary *) jso userid : (NSString *)userid;
+
+/**
+ * 保存示例照片
+ *
+ * @param jso
+ * @return
+ * @author hubo
+ */
+- (BOOL) saveDownloadContent : (NSDictionary *) jso userid : (NSString *) userid;
+
+- (BOOL) insertContent : (NSString *) boContentId boContentName : (NSString *)boContentName boTemplateDetailVerId : (NSString *) boTemplateDetailVerId boSingleProjectId : (NSString *) boSingleProjectId boProjectSelectionId : (NSString *) boProjectSelectionId boTotalNum : (NSString *) boTotalNum boCurrentNum : (NSString *) boCurrentNum createDate : (NSString *) createDate
+            updateDate : (NSString *) updateDate type : (NSString *) type boCheckProjectId : (NSString *) boCheckProjectId userid : (NSString *) userid;
+
+/**
+ * 根据boContentId获得项目，模板，检查，整改信息
+ * @param boContentId
+ * @return map
+ * @author yanghua
+ */
+- (NSDictionary *)getFullInfoByBoContentId:(NSString *)boContentId userid:(NSString *)userid;
+
+- (BOOL)updateContentCompleteWithBoContentId:(NSString *)boContentId updateDate:(NSString *)updateDate currentNum:(NSString *)currentNum type:(NSString *)type userid:(NSString *)userid;
+
+- (NSString *)getBoContentIdAndTypeCountWithBoContentId:(NSString *)boContentId type:(NSString *)type userid:(NSString *)userid;
+
+/**
+ * 标识已完成抽查任务
+ *
+ * @param boContentId
+ * @author yanghua
+ */
+- (void)doCompleteTaskWithBoContentId:(NSString *)boContentId userid:(NSString *)userid;
+
+/**
+ * 根据项目,分段,模板获取巡检控制点ID
+ *
+ * @param jsonObject
+ * @return
+ * @author hubo
+ */
+- (NSMutableArray *)getContentIdByOths:(NSDictionary *)jso userid:(NSString *)userid;
+
+/**
+ * 更新控制点ID
+ *
+ * @param oldContentId
+ * @param newContentId
+ * @return
+ * @author hubo
+ */
+- (BOOL)updateContentWithOldContentId:(NSString *)oldContentId newContentId:(NSString *)newContentId;
+
+/**
+ * 获得临时contentid
+ *
+ * @param templateId
+ * @param boSingleProjectId
+ * @return true or false
+ * @author yanghua
+ */
+- (NSString *)getTempContentIdWithTemplateId:(NSString *)templateId boSingleProjectId:(NSString *)boSingleProjectId userid:(NSString *)userid;
+
+/**
+ * 更新content内容
+ *
+ * @param boContentId
+ * @param contentType
+ * @return true or false
+ * @author yanghua
+ */
+- (BOOL)updateContentInfo:(NSDictionary *)jsonObject userid:(NSString *)userid;
+
+/**
+ * 标识已完成抽查任务
+ *
+ * @param boCheckProjectId
+ * @author yanghua
+ */
+- (BOOL)doFinishAllTaskWithBoCheckProjectId:(NSString *)boCheckProjectId;
+
+/**
+ * 得到项目下的检查任务
+ *
+ * @param boSingleProjectId
+ * @return list
+ * @author yanghua
+ */
+- (NSMutableArray *)getCheckTaskListWithBoSingleProjectId:(NSString *)boSingleProjectId;
+
+/**
+ * 删除草稿或完成检查后修改草稿状态
+ *
+ * @param boContentId
+ * @return true or false
+ * @author yanghua
+ */
+- (BOOL)updateOtherTypeStateWithBoContentId:(NSString *)boContentId userid:(NSString *)userid;
+
+/**
+ * 保存临时content
+ *
+ * @param jso
+ * @return true or false
+ * @author yanghua
+ */
+- (BOOL) saveDraftContent : (NSDictionary *)jso userid:(NSString *)userid;
+@end

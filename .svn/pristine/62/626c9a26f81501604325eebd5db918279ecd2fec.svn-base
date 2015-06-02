@@ -1,0 +1,637 @@
+//
+//  BaseHomeViewController.m
+//  hxqm_mobile
+//
+//  Created by panqw on 15-4-8.
+//  Copyright (c) 2015年 huaxin. All rights reserved.
+//
+
+#import "BaseHomeViewController.h"
+#import "BaseAjaxHttpRequest.h"
+#import "SVProgressHUD.h"
+#import "Constants.h"
+#import "BaseAjaxHttpRequest.h"
+#import "SingleProjectManager.h"
+#import "AppConfigure.h"
+#import "GTMNSString+URLArguments.h"
+#import "LogUtils.h"
+#import "BaseFunction.h"
+#import "NSData+GZIP.h"
+#import "CooperateManager.h"
+#import "PhotoManager.h"
+#import "DeptManager.h"
+#import "SectionManager.h"
+#import "TemplateManager.h"
+#import "CheckManager.h"
+#import "ProblemManager.h"
+#import "BaseFormDataRequest.h"
+#import "AppDelegate.h"
+
+#define TAG @"_BaseHomeViewController"
+#define _REDOWNLOAD 102
+
+@interface BaseHomeViewController(){
+    //是否处于正在上传图片的状态
+    BOOL uploading;
+    //当前上传的文件index
+    NSInteger currentUploadingIndex;
+    //需要上传图片的总数
+    NSInteger totalCounts;
+    //需要上传的文件
+    NSMutableArray *fileList;
+    
+    //可更新数据量
+    float updateTotalNum;
+    FMDatabase *db;
+    NSString *updateFilePath;
+    //已下载的字节数
+    float currentReadPosition;
+    //文件输出流，有数据更新时使用
+    NSOutputStream *outputStream;
+}
+
+@end
+
+@implementation BaseHomeViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    uploading = NO;
+    db = [BaseFunction createDB];
+    [db open];
+}
+
+- (void) getUpdatableNum{
+    NSURL *url = [NSURL URLWithString:TOTAL_RECEIVE];
+    BaseAjaxHttpRequest *request = [BaseAjaxHttpRequest requestWithURL:url];
+    SingleProjectManager *singleProjectManager = [[SingleProjectManager alloc] initWithDb:db];
+    NSString *timeStamp = [singleProjectManager getLatestUpdateDate:[AppConfigure objectForKey:USERID]];
+    //对用户名进行编码
+    NSString *uname = [AppConfigure objectForKey:USERNAME];
+    NSDictionary *params = @{@"USERNAME":[uname gtm_stringByEscapingForURLArgument],
+                             @"UPDATE_TIMESTAMP":timeStamp,
+                             @"CHECK_TYPE":@"4"};
+    [request setPostBody:params];
+    __weak BaseAjaxHttpRequest *weakRequest = request;
+    [request setCompletionBlock:^{
+        NSError *err;
+        
+        NSString *responseString = [weakRequest responseString];
+        [LogUtils Log:TAG content:[NSString stringWithFormat:@"responseString = %@", responseString]];
+        if ([responseString myContainsString:SESSION_TIMEOUT]) {
+            [self sessionTimeout];
+        } else {
+            NSDictionary *dic = [NSJSONSerialization JSONObjectWithData:[weakRequest responseData] options:kNilOptions error:&err];
+            updateTotalNum = ((NSNumber *)[dic objectForKey:@"totalNum"]).intValue;
+            NSLog(@"%@",[NSString stringWithFormat:@"updateTotalNum--->%f",updateTotalNum]);
+            if(updateTotalNum > 0) {
+                [self updateMobileData:params];
+                //初始化进度框和弹出框
+                [self initProgressAlert];
+            } else {
+                //更新显示巡检，上传等的数量
+                [self updateUINums];
+            }
+        }
+    }];
+    [request setFailedBlock:^{
+        
+        NSString *responseString = [weakRequest responseString];
+        [LogUtils Log:@"update num" content:responseString];
+        
+        //获取更新数量失败处理
+        [self showFailMsg:@"无法访问服务或网络"];
+        [self updateUINums];
+    }];
+    [request startAsynchronous];
+}
+
+//更新首页数字显示
+- (void) updateUINums {
+    //更新显示巡检，上传等的数量
+    NSString *userid = [AppConfigure objectForKey:USERID];
+    //需上传图片的数量
+    PhotoManager *photoManager = [[PhotoManager alloc] init];
+    [photoManager sharedDatabase:db];
+    NSString *photoCounts =[photoManager getUploadPhotoCounts:userid];
+    
+    //巡检数量更新
+    SingleProjectManager *singleProjectManager = [[SingleProjectManager alloc] init];
+    [singleProjectManager sharedDatabase:db];
+    NSString *siteCount = [singleProjectManager getTotalSiteCount:userid];
+    //抽查
+    NSString *checkCount = [singleProjectManager getCheckNum:userid];
+    //整改
+    NSString *problemReplyCount = [singleProjectManager getProblemReplyNum:userid];
+    //出工计划
+    CooperateManager *cooperateManager = [[CooperateManager alloc] init];
+    [cooperateManager sharedDatabase:db];
+    NSString *cooperateCount = [cooperateManager getTaskNum:[AppConfigure objectForKey:WORK_DATE] userid:userid];
+    [self updateUINums:photoCounts siteCount:siteCount checkCount:checkCount  problemReplyCount:problemReplyCount cooperateCount:cooperateCount];
+}
+
+//更新上传的数量
+- (void) updateUINums : (NSString *) photoCounts siteCount : (NSString *) siteCount checkCount : (NSString *) checkCount problemReplyCount : (NSString *) problemReplyCount cooperateCount : (NSString *) cooperateCount{
+}
+
+/**
+ *  获取插入数据库的操作类
+ *
+ *  @param name
+ *
+ *  @return
+ */
+- (id<IGsonDataSaver>) getDataManager : (NSString *) name {
+    id<IGsonDataSaver> dbManager;
+    if([name isEqualToString:@"singleList"]) {
+        dbManager = [[SingleProjectManager alloc] init];
+    } else if([name isEqualToString:@"deptList"]) {
+        dbManager = [[DeptManager alloc] init];
+    } else if([name isEqualToString:@"selectionList"]) {
+        dbManager = [[SectionManager alloc] init];
+    } else if([name isEqualToString:@"excludeTemplateList"]) {
+        dbManager = [[TemplateManager alloc] init];
+    } else if([name isEqualToString:@"checkProjectList"]) {
+        dbManager = [[CheckManager alloc] init];
+    } else if([name isEqualToString:@"problemList"] || [name isEqualToString:@"problemDelayList"]|| [name isEqualToString:@"relativeOrgList"]) {
+        dbManager = [[ProblemManager alloc] init];
+    } else if([name isEqualToString:@"cooperateList"]) {
+        dbManager = [[CooperateManager alloc] init];
+    } else if([name isEqualToString:@"photoList"]) {
+        dbManager = [[PhotoManager alloc] init];
+    } else {
+        return nil;
+    }
+    return dbManager;
+}
+
+/**
+ *  迭代从服务器下载更新数据
+ *
+ *  @param params
+ */
+- (void) updateMobileData : (NSDictionary *) params {
+    //获取更新数据
+    NSURL *url = [NSURL URLWithString:MOBILE_RECEIVE];
+    BaseAjaxHttpRequest *request = [BaseAjaxHttpRequest requestWithURL:url];
+    request.shouldWaitToInflateCompressedResponses = NO;
+    request.delegate = self;
+    [request setPostBody:params];
+    [request startAsynchronous];
+    //创建文件写入流，将数据保存至本地document目录的txt文件下面
+    updateFilePath = [DocumentsDirectory stringByAppendingString:[NSString stringWithFormat:@"/%f.txt",[NSDate date].timeIntervalSinceNow]];
+    outputStream = [[NSOutputStream alloc] initToFileAtPath:updateFilePath append:YES];
+    [outputStream open];
+}
+
+#pragma mark - download progress delegate write data to file
+- (void) request:(ASIHTTPRequest *)request didReceiveData:(NSData *)data {
+    
+    NSInteger       dataLength;
+    const uint8_t * dataBytes;
+    NSInteger       bytesWritten;
+    NSInteger       bytesWrittenSoFar;
+    
+    // 接收到的数据长度
+    dataLength = [data length];
+    dataBytes  = [data bytes];
+    bytesWrittenSoFar = 0;
+    if(dataLength!=0){
+        do {
+            bytesWritten = [outputStream write:&dataBytes[bytesWrittenSoFar] maxLength:dataLength - bytesWrittenSoFar];
+            //assert(bytesWritten != 0);
+            if (bytesWritten == -1) {
+                break;
+            } else {
+                bytesWrittenSoFar += bytesWritten;
+            }
+        } while (bytesWrittenSoFar != dataLength);
+        NSLog(@"本次数据长度%ld",(long)dataLength);
+        NSLog(@"已读写了%ld",(long)bytesWrittenSoFar);
+    }
+    currentReadPosition += dataLength;
+    [self showCurrentReadPosition:currentReadPosition];
+}
+
+//download finished
+- (void)requestFinished:(ASIHTTPRequest *)request {
+    NSLog(updateFilePath);
+    [outputStream close];
+    if(updateTotalNum > SHOW_DLG_VALUE) {
+        [self showProgressAlert];
+    } else {
+        [self closeProgressAlert];
+    }
+    
+    //读取文件并解析
+    NSError *err;
+    NSData *data = [NSData dataWithContentsOfFile:updateFilePath options:kNilOptions error:&err];
+    NSDictionary *dic = [NSJSONSerialization JSONObjectWithData:data options:kNilOptions error:&err];
+    if(!err) {
+        
+        //更新时间戳
+        NSString *update = [dic objectForKey:@"UPDATE_TIMESTAMP"];
+        [AppConfigure setObject:update ForKey:UPDATE_TIMESTAMP];
+        //获取用户策略
+        NSString *stategy = [dic objectForKey:@"Strategy"];
+        [AppConfigure setObject:stategy ForKey:Strategy];
+        NSLog(@"Strategy为：%@",stategy);
+        //合作方出工日期
+        NSString *work_date = [dic objectForKey:@"WORK_DATE"];
+        [AppConfigure setObject:work_date ForKey:WORK_DATE];
+        
+        Global(^{
+            FMDatabaseQueue *queue = [BaseFunction createDBQueue];
+            [queue inTransaction:^(FMDatabase *db1, BOOL *rollback) {
+                [db1 setShouldCacheStatements:YES];
+                int insertedCount = 0;
+                for(NSString *keys in dic) {
+                    if([keys myContainsString:@"List"]) {
+                        id<IGsonDataSaver> dbManager = [self getDataManager:keys];
+                        ClientDBManager *manager = (ClientDBManager *) dbManager;
+                        [manager sharedDatabase:db1];
+                        NSString *userid = [AppConfigure objectForKey:USERID];
+                        NSArray *array = [dic objectForKey:keys];
+                        if(array.count > 0) {
+                            for(NSInteger i = 0;i < array.count;i++) {
+                                NSDictionary *oneRecord = [array objectAtIndex:i];
+                                if([dbManager insertOneRecord:oneRecord userid:userid]) {
+                                    insertedCount ++;
+                                    [self updateInsertDataProcess:insertedCount updateTotalNum:updateTotalNum];
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                NSString *userid = [AppConfigure objectForKey:USERID];
+                //需上传图片的数量
+                PhotoManager *photoManager = [[PhotoManager alloc] init];
+                [photoManager sharedDatabase:db1];
+                NSString *photoCounts =[photoManager getUploadPhotoCounts:userid];
+                
+                //巡检数量更新
+                SingleProjectManager *singleProjectManager = [[SingleProjectManager alloc] init];
+                [singleProjectManager sharedDatabase:db1];
+                NSString *siteCount = [singleProjectManager getTotalSiteCount:userid];
+                
+                //抽查
+                NSString *checkCount = [singleProjectManager getCheckNum:userid];
+                //整改
+                NSString *problemReplyCount = [singleProjectManager getProblemReplyNum:userid];
+                //出工计划
+                CooperateManager *cooperateManager = [[CooperateManager alloc] init];
+                [cooperateManager sharedDatabase:db1];
+                NSString *cooperateCount = [cooperateManager getTaskNum:[AppConfigure objectForKey:WORK_DATE] userid:userid];
+                Main(^{
+                    [self updateUINums:photoCounts siteCount:siteCount checkCount:checkCount problemReplyCount:problemReplyCount cooperateCount:cooperateCount];
+                });
+            }];
+            [queue close];
+        });
+        
+        NSString *neednext = [dic objectForKey:@"neednext"];
+        if(![neednext isEqualToString:@"false"]) {
+            //继续迭代请求
+            SingleProjectManager *singleProjectManager = [[SingleProjectManager alloc] initWithDb:db];
+            NSString *timeStamp = [singleProjectManager getLatestUpdateDate:[AppConfigure objectForKey:USERID]];
+            NSDictionary *params = @{@"USERNAME":[AppConfigure objectForKey:USERNAME],
+                                     @"UPDATE_TIMESTAMP":timeStamp,
+                                     @"CHECK_TYPE":@"4"};
+            [self updateMobileData:params];
+        }
+        
+    } else {
+        //文件json解析出现异常
+        [self showFailMsg:@"系统更新失败"];
+    }
+    
+    //delete updateFilePath
+    NSFileManager *manager = [NSFileManager defaultManager];
+    [manager removeItemAtPath:updateFilePath error:nil];
+}
+
+-(void)doUpload:(NSDictionary *) inputData{
+    if(uploading) {
+        return;
+    }
+    [db open];
+    PhotoManager *photoManager = [[PhotoManager alloc] initWithDb:db];
+    //遍历删除不存在图片的记录
+    [photoManager doDeleteNotExistPhoto:inputData userid:[AppConfigure objectForKey:USERID]];
+    //判断是巡检上传还是抽查整改上传
+    NSArray *tempArray = [[NSArray alloc] init];
+    if([@"2" isEqualToString:[inputData objectForKey:@"PHOTO_TYPE"]]){
+        tempArray = [photoManager getCheckUploadPhotoList:inputData userid:[AppConfigure objectForKey:USERID]];
+    }else{
+        tempArray = [photoManager getXjUploadPhotoList:nil userid:[AppConfigure objectForKey:USERID]];
+    }
+    [LogUtils Log:TAG content:[NSString stringWithFormat:@"tempArray = %@", tempArray]];
+    if([tempArray count] == 0) {
+        [self noFileNeedUpload];
+        return;
+    }
+    
+    fileList = [self prepareFileArray:tempArray];
+    totalCounts = [fileList count];
+    //当前正在上传的图片index
+    currentUploadingIndex = 0;
+    //上传图片
+    [self uploadPics];
+    //更新上传的图片进度数
+    [self updateUploadingUI:currentUploadingIndex totalCounts:totalCounts];
+}
+
+-(void)setUploadProgressDelegate:(BaseFormDataRequest *)request{
+    
+}
+
+/**
+ *  上传图片
+ */
+- (void) uploadPics {
+    NSURL *url = [NSURL URLWithString:FILEUPLOAD];
+    BaseFormDataRequest *request = [[BaseFormDataRequest alloc] initWithURL:url];
+    //设置上传进度显示
+    [self setUploadProgressDelegate:request];
+    NSDictionary *currentMap = [fileList objectAtIndex:0];
+    //拼接上传的参数
+    [self setPostParams:currentUploadingIndex currentMap:currentMap request:request];
+    [request startAsynchronous];
+    uploading = YES;
+    NSString *isMergedPng = [currentMap objectForKey:@"is_merged_png"];
+    NSString *currentBoPhotoId = [currentMap objectForKey:@"bo_photo_id"];
+    __weak BaseFormDataRequest *weakRequest = request;
+    __weak typeof(self) weakSelf = self;
+    [request setCompletionBlock:^{
+        NSString *result = [weakRequest responseString];
+        if([result myContainsString:SESSION_TIMEOUT]) {
+            [LogUtils Log:TAG content:[NSString stringWithFormat:@"result = %@", result]];
+            [weakSelf sessionTimeout];
+            [self updateUploadingUI:totalCounts totalCounts:totalCounts];
+        } else {
+            if([@"success" isEqualToString:result]) {
+                //上传成功
+                currentUploadingIndex ++;
+                [self updateUploadingUI:currentUploadingIndex totalCounts:totalCounts];
+                if([fileList count] > 0) {
+                    
+                    //更新本地图片的上传状态
+                    if([@"NO" isEqualToString:isMergedPng]) {
+                        if(self.navigationController.tabBarController.selectedIndex != 0) {
+                            [db open];
+                        }
+                        PhotoManager *photoManager = [[PhotoManager alloc] initWithDb:db];
+                        BOOL updateResult = [photoManager updataPhotoUploadStatus:currentBoPhotoId status:@"2" userid:[AppConfigure objectForKey:USERID]];
+                        [LogUtils Log:TAG content:[NSString stringWithFormat:@"本地图片的上传状态：%@", updateResult ? @"成功" : @"失败"]];
+                    }
+                    
+                    [fileList removeObjectAtIndex:0];
+                    if([fileList count] > 0) {
+                        //更新数据库记录
+                        [self uploadPics];
+                    } else {
+                        [SVProgressHUD showSuccessWithStatus:@"上传完毕"];
+                        uploading = NO;
+                        [self doSucceedUpload];
+                    }
+                }
+            } else {
+                //上传失败
+                [self updateUploadingUI:totalCounts totalCounts:totalCounts];
+                [self shwoUploadablePicNum:[self getUploadablePicNum]];
+                uploading = NO;
+            }
+        }
+    }];
+    [request setFailedBlock:^{
+        NSError *error = [request error ];
+        NSLog ( @"error:%@" ,[error userInfo ]);
+        [SVProgressHUD showErrorWithStatus:@"网络异常"];
+        [self updateUploadingUI:totalCounts totalCounts:totalCounts];
+        NSString *photoCounts = [self getUploadablePicNum];
+        [self shwoUploadablePicNum:photoCounts];
+        uploading = NO;
+    }];
+}
+
+
+/**
+ *  上传前先对字段进行处理
+ *
+ *  @param tempArray 数据库获取的上传图片列表
+ *
+ *  @return 处理后的上传图片列表
+ */
+- (NSMutableArray *) prepareFileArray : (NSArray *) tempArray {
+    NSMutableArray *fileArray = [[NSMutableArray alloc] init];
+    
+    for (NSInteger i = 0; i < tempArray.count; i++) {
+        NSDictionary *fileMap = [tempArray objectAtIndex:i];
+        [fileMap setValue:@"NO" forKey:@"is_merged_png"];
+        
+        NSString *isDoodled = [fileMap objectForKey:@"is_doodled"];
+        //如果已进行涂鸦，则加到fileArray的头部
+        if([@"1" isEqualToString:isDoodled]) {
+            NSMutableDictionary *mergedMap = [[NSMutableDictionary alloc] initWithDictionary:fileMap];
+            NSString *mergedPhotoPath = [BaseFunction getDoodlePicSystemFolderPath];
+            [mergedMap setObject:mergedPhotoPath forKey:@"photo_path"];
+            [mergedMap setObject:@"YES" forKey:@"is_merged_png"];
+            [mergedMap setObject:[mergedMap objectForKey:@"bo_photo_id"] forKey:@"file_prefix"];
+            [mergedMap setObject:@".png" forKey:@"file_suffix"];
+            [fileArray addObject:mergedMap];
+        } else {
+            [fileMap setValue:@"0" forKey:@"is_doodled"];
+        }
+        
+        if([@"" isEqualToString:[fileMap objectForKey:@"bo_check_project_id"]] && [@"3" isEqualToString:[fileMap objectForKey:@"is_formal"]]) {
+            [fileMap setValue:@"NO_NEED" forKey:@"bo_check_project_id"];
+        }
+        
+        [fileArray addObject:fileMap];
+    }
+    
+    return fileArray;
+}
+
+/**
+ *  对字符串进行utf-8编码
+ *
+ *  @param str 需编码的字符串
+ *
+ *  @return 编码后得到的字符串
+ */
+- (NSString *) utf8Encode : (NSString *) str {
+    return [str stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding];
+}
+
+/**
+ *  拼接post上传参数
+ *
+ *  @param uploadingIndex 上传到第几张图片
+ *  @param currentMap     当前上传图片的信息字典
+ *  @param request        http request对象
+ */
+- (void) setPostParams : (NSInteger) uploadingIndex currentMap : (NSDictionary *) currentMap request : (BaseFormDataRequest *) request {
+    [request setPostValue:[currentMap objectForKey:@"bo_photo_id"] forKey:@"BO_PHOTO_ID"];
+    [request setPostValue:[self utf8Encode:[currentMap objectForKey:@"photo_name"]] forKey:@"PHOTO_NAME"];
+    [request setPostValue:[currentMap objectForKey:@"photo_path"] forKey:@"PHOTO_PATH"];
+    [request setPostValue:[currentMap objectForKey:@"bo_critical_point_ver_id"] forKey:@"BO_CRITICAL_POINT_VER_ID"];
+    [request setPostValue:[self utf8Encode:[currentMap objectForKey:@"point_name"]]forKey:@"POINT_NAME"];
+    [request setPostValue:[currentMap objectForKey:@"bo_single_project_id"] forKey:@"BO_SINGLE_PROJECT_ID"];
+    [request setPostValue:[currentMap objectForKey:@"bo_project_section_id"] forKey:@"BO_PROJECT_SECTION_ID"];
+    [request setPostValue:[currentMap objectForKey:@"file_prefix"] forKey:@"FILE_PREFIX"];
+    [request setPostValue:[currentMap objectForKey:@"file_suffix"] forKey:@"FILE_SUFFIX"];
+    [request setPostValue:[currentMap objectForKey:@"create_userid"] forKey:@"CREATE_USERID"];
+    [request setPostValue:[self utf8Encode:[currentMap objectForKey:@"MEMO"]] forKey:@"MEMO"];
+    [request setPostValue:[currentMap objectForKey:@"latitude"] forKey:@"LATITUDE"];
+    [request setPostValue:[currentMap objectForKey:@"longitude"] forKey:@"LONGITUDE"];
+    [request setPostValue:[currentMap objectForKey:@"create_date"] forKey:@"CREATE_DATE"];
+    [request setPostValue:[currentMap objectForKey:@"ref_mineimage_id"] forKey:@"REF_MINEIMAGE_ID"];
+    [request setPostValue:[currentMap objectForKey:@"is_formal"] forKey:@"IS_FORMAL"];
+    [request setPostValue:[currentMap objectForKey:@"photo_type"] forKey:@"PHOTO_TYPE"];
+    [request setPostValue:[currentMap objectForKey:@"photo_size"] forKey:@"PHOTO_SIZE"];
+    [request setPostValue:[currentMap objectForKey:@"image_quality"] forKey:@"IMAGE_QUALITY"];
+    [request setPostValue:[currentMap objectForKey:@"is_doodled"] forKey:@"IS_DOODLED"];
+    [request setPostValue:[self utf8Encode:[currentMap objectForKey:@"bo_content_name"]] forKey:@"BO_CONTENT_NAME"];
+    [request setPostValue:[currentMap objectForKey:@"bo_template_detail_ver_id"] forKey:@"BO_TEMPLATE_DETAIL_VER_ID"];
+    [request setPostValue:[currentMap objectForKey:@"e"] forKey:@"E"];
+    [request setPostValue:[currentMap objectForKey:@"n"] forKey:@"N"];
+    [request setPostValue:[currentMap objectForKey:@"serialize_num"] forKey:@"SERIALIZE_NUM"];
+    [request setPostValue:[NSString stringWithFormat:@"%ld",uploadingIndex] forKey:@"CURRENT_PHOTO"];
+    NSString *distance = [BaseFunction calculateDistance:[(NSString *)[currentMap objectForKey:@"e"] floatValue] latitude:[(NSString *)[currentMap objectForKey:@"n"] floatValue] longitude2:[AppConfigure objectForKey:LONGITUDE] latitude2:[AppConfigure objectForKey:LATITUDE]];
+    [request setPostValue:distance forKey:@"DISTANCE"];
+    [request setPostValue:[currentMap objectForKey:@"bo_project_section_id"] forKey:@"BO_PROJECT_GROUP_ID"];
+    [request setPostValue:[currentMap objectForKey:@"serialize_num"] forKey:@"PHOTO_NUMBER"];
+    [request setPostValue:[NSString stringWithFormat:@"%ld",totalCounts] forKey:@"totalCounts"];
+    [request setPostValue:[NSString stringWithFormat:@"%ld",uploadingIndex + 1] forKey:@"leftNum"];
+    [request setPostValue:[BaseFunction safeGetValueByKey:currentMap Key:@"bo_content_id"] forKey:@"BO_CONTENT_ID"];
+    [request setPostValue:[BaseFunction safeGetValueByKey:currentMap Key:@"ref_mineimage_id"] forKey:@"REF_MINEIMAGE_ID"];
+    [request setPostValue:[BaseFunction safeGetValueByKey:currentMap Key:@"bo_problem_id"] forKey:@"BO_PROBLEM_ID"];
+    [request setPostValue:[BaseFunction safeGetValueByKey:currentMap Key:@"bo_problem_reply_id"] forKey:@"BO_PROBLEM_REPLY_ID"];
+    NSString *isDoodled = [currentMap objectForKey:@"is_doodled"];
+    NSString *photoFullPath;
+    if([@"1" isEqualToString:isDoodled]) {
+        //涂鸦图片的路径
+        NSString *photoPath = [currentMap objectForKey:@"photo_path"];
+        if([photoPath myContainsString:@"doodlePic"]) {
+            photoFullPath = [[photoPath stringByAppendingPathComponent:[currentMap objectForKey:@"file_prefix"]] stringByAppendingString:[currentMap objectForKey:@"file_suffix"]];
+            photoFullPath = [BaseFunction getCurrentPathWithFilePath:photoFullPath];
+        } else {
+            //正常图片的路径
+            photoFullPath = [[photoPath stringByAppendingPathComponent:[currentMap objectForKey:@"file_prefix"]] stringByAppendingString:[currentMap objectForKey:@"file_suffix"]];
+            photoFullPath = [BaseFunction getCurrentPathWithFilePath:photoFullPath];
+        }
+    } else {
+        //正常图片的路径
+        photoFullPath = [[[currentMap objectForKey:@"photo_path"] stringByAppendingPathComponent:[currentMap objectForKey:@"file_prefix"]] stringByAppendingString:[currentMap objectForKey:@"file_suffix"]];
+        photoFullPath = [BaseFunction getCurrentPathWithFilePath:photoFullPath];
+    }
+    [request setPostValue:[currentMap objectForKey:@"is_merged_png"] forKey:@"IS_MERGED_PNG"];
+    [request setFile:photoFullPath forKey:@"file1"];
+}
+
+/**
+ *  根据当前上传完成的图片序列号更新上传ui的显示
+ *
+ *  @param uploadingIndex 已上传图片的序列号
+ */
+- (void) updateUploadingUI : (NSInteger) uploadingIndex totalCounts:(NSInteger) totalCounts{
+}
+
+//根据已经插入的数据量，更新ui
+- (void) updateInsertDataProcess : (int) insertedCount updateTotalNum:(float)updateTotalNum {
+}
+
+-(void) requestFailed:(ASIHTTPRequest *)request {
+    [SVProgressHUD showErrorWithStatus:@"系统更新失败"];
+}
+
+-(void)showCurrentReadPosition:(float)currentReadPosition{
+}
+
+-(void)showProgressAlert{
+}
+
+-(void)closeProgressAlert{
+}
+
+//初始化进度框和弹出框
+-(void)initProgressAlert{
+}
+
+//请求失败显示
+-(void)showFailMsg:(NSString *)string{
+    [SVProgressHUD showErrorWithStatus:string];
+    [self showReLoadAlertView];
+}
+
+- (void)updateUploadablePicNum{
+    [db open];
+    if(!uploading) {
+        NSString *photoCounts = [self getUploadablePicNum];
+        [self shwoUploadablePicNum:photoCounts];
+    }
+    
+}
+
+-(void)shwoUploadablePicNum:(NSString *)photoCounts{
+    
+}
+
+-(void)filterModule{
+    
+}
+
+- (void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
+    [db close];
+}
+
+/**
+ *  获取可上传的图片数量
+ *
+ *  @return
+ */
+- (NSString *) getUploadablePicNum {
+    PhotoManager *photoManager = [[PhotoManager alloc] initWithDb:db];
+    NSString *photoCounts =[photoManager getUploadPhotoCounts:[AppConfigure objectForKey:USERID]];
+    return photoCounts;
+}
+
+//显示更新提示框
+- (void) showReLoadAlertView {
+    UIAlertView *updateAlert = [[UIAlertView alloc] initWithTitle:@"提示" message:@"更新失败，是否重试？" delegate:self cancelButtonTitle:@"退出" otherButtonTitles:@"重试", nil];
+    updateAlert.tag = _REDOWNLOAD;
+    [updateAlert show];
+}
+
+#pragma mark - update alertview delegate
+- (void)alertView:(UIAlertView *)alertView clickedButtonAtIndex:(NSInteger)buttonIndex {
+    if(buttonIndex == 1 && alertView.tag == _REDOWNLOAD) {
+        //打开网页下载
+        [self getUpdatableNum];
+    }
+    if(buttonIndex == 0 && alertView.tag == _REDOWNLOAD) {
+        [self exitApplication];//退出App
+    }
+}
+
+- (void)exitApplication {
+    AppDelegate *app = [UIApplication sharedApplication].delegate;
+    UIWindow *window = app.window;
+    
+    [UIView animateWithDuration:1.0f animations:^{
+        window.alpha = 0;
+        window.frame = CGRectMake(0, window.bounds.size.width, 0, 0);
+    } completion:^(BOOL finished) {
+        exit(0);
+    }];
+    
+}
+
+- (void) doSucceedUpload {}
+
+- (void) noFileNeedUpload {}
+@end
+

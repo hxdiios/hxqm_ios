@@ -1,0 +1,101 @@
+//
+//  ClientDBManager.h
+//  hxqm_mobile
+//
+//  数据库基本操作类
+//  Created by 刘志 on 15/1/14.
+//  Copyright (c) 2015年 huaxin. All rights reserved.
+//
+
+#import <Foundation/Foundation.h>
+#import "FMDatabase.h"
+#import "FMResultSet.h"
+
+@interface ClientDBManager : NSObject
+
+- (id) initWithDb : (FMDatabase *) database;
+
+- (id) initWithDb;
+
+/**
+ * 打开数据库
+ */
+- (BOOL)openDB;
+
+/**
+ * 关闭数据库
+ */
+- (BOOL)closeDB;
+
+/**
+ * 提交数据库
+ */
+- (BOOL) commitDB;
+
+/**
+ * 开始事务
+ */
+- (BOOL) beginTransaction;
+
+/**
+ * 回滚事务
+ */
+- (BOOL) rollback;
+
+- (BOOL) inTransaction;
+
+- (void) sharedDatabase : (FMDatabase *) database;
+
+/**
+ * 执行更新sql
+ */
+- (BOOL) executeUpdate : (NSString *) sql params : (NSArray *) params;
+
+/**
+ * 执行sql查询结果，获取结果集为FMResultSet
+ *
+ * @param sql
+ * @param params
+ * @return
+ */
+- (FMResultSet *) select : (NSString *) sql params : (NSArray *) params;
+
+/**
+ * 执行sql查询结果集合，获取结果集为NSArray,数据集合里的子项为NSDictionary
+ *
+ * @param sql
+ * @param params
+ * @return
+ */
+- (NSMutableArray *) getListBySql : (NSString*) sql params : (NSArray *) params;
+
+/**
+ * 执行sql 获取结果为Map<String, String>
+ *
+ * @param sql
+ * @param params
+ * @return
+ */
+- (NSDictionary *) getMapBySql : (NSString *) sql params : (NSArray *) params;
+
+/**
+ * 执行sql 获取值
+ *
+ * @param sql
+ * @param params
+ * @param key
+ * @return
+ */
+- (NSString *) getStringBySql : (NSString *) sql params : (NSArray *) params key : (NSString *) key;
+
+
+/**
+ * 执行SQL
+ *
+ * @param sql
+ * @param params
+ * @return 成功true；失败false
+ */
+- (BOOL) executeSql : (NSString *) sql params : (NSArray *)params;
+
+@end

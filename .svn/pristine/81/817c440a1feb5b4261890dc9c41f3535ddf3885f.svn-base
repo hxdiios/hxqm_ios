@@ -1,0 +1,291 @@
+//
+//  AppDelegate.m
+//  hxqm_mobile
+//
+//  Created by huaxin_mac2 on 15-1-5.
+//  Copyright (c) 2015年 huaxin. All rights reserved.
+//
+
+#import "AppDelegate.h"
+#import "CatchCrash.h"
+
+@implementation AppDelegate
+
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
+{
+    
+    //注册本地通知
+    if(CURRENT_IOS_VER >= 8.0) {
+        [application registerUserNotificationSettings:[UIUserNotificationSettings settingsForTypes:UIUserNotificationTypeAlert|UIUserNotificationTypeBadge|UIUserNotificationTypeSound categories:nil]];
+    }
+    
+    //进入app后，将红点数清0
+    [UIApplication sharedApplication].applicationIconBadgeNumber = 0;
+    
+    //初始化xmpp
+    [self setupStream];
+    
+    //注册消息处理函数的处理方法
+    NSSetUncaughtExceptionHandler(&uncaughtExceptionHandler);
+    [self checkErrLog];
+    
+    // Override point for customization after application launch.
+    _window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+    //设置window背景色
+    _window.backgroundColor = [UIColor lightGrayColor];
+    // 设置状态栏颜色
+    [[UIApplication sharedApplication] setStatusBarStyle:UIStatusBarStyleLightContent];
+    if(CURRENT_IOS_VER >= 7.0) {
+        // 设置导航栏的背景色
+        [[UINavigationBar appearance] setBarTintColor:[UIColor colorWithRed:18/255.0 green:36/255.0 blue:50/255.0 alpha:1.0]];
+        [[UIApplication sharedApplication] setStatusBarStyle:UIStatusBarStyleLightContent animated:NO];
+    }
+    
+    WelcomeViewController *welcomeController = [[WelcomeViewController alloc] initWithNibName:@"WelcomeViewController" bundle:nil];
+    _window.rootViewController = welcomeController;
+    [_window makeKeyAndVisible];
+    return YES;
+}
+
+- (void)applicationWillResignActive:(UIApplication *)application
+{
+    // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
+    // Use this method to pause ongoing tasks, disable timers, and throttle down OpenGL ES frame rates. Games should use this method to pause the game.
+}
+
+- (void)applicationDidEnterBackground:(UIApplication *)application
+{
+    // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later. 
+    // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
+}
+
+- (void)applicationWillEnterForeground:(UIApplication *)application
+{
+    // Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
+}
+
+- (void)applicationDidBecomeActive:(UIApplication *)application
+{
+    //当app从后台返回到前台时，尝试重新连接xmpp服务器
+    [self connect];
+}
+
+- (void)applicationWillTerminate:(UIApplication *)application
+{
+    // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+    [self teardownStream];
+}
+
+- (void)dealloc
+{
+    [self teardownStream];
+}
+
+- (BOOL) connect {
+
+    if(![_xmppStream isDisconnected]) {
+        return YES;
+    }
+    
+    NSString *jabberID = [AppConfigure objectForKey:JID];
+    NSString *myPassword = [AppConfigure objectForKey:PASSWORD];
+    
+    if(jabberID == nil || myPassword == nil) {
+        return NO;
+    }
+    password = myPassword;
+    [_xmppStream setMyJID:[XMPPJID jidWithString:jabberID]];
+    NSError *error = nil;
+    if(![_xmppStream connectWithTimeout:XMPPStreamTimeoutNone error:&error]) {
+        UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:@"err" message:[NSString stringWithFormat:@"can't connect to server %@",[error localizedDescription]] delegate:nil cancelButtonTitle:@"ok" otherButtonTitles:nil, nil];
+        [alertView show];
+        
+        return NO;
+    }
+    
+    return YES;
+}
+
+- (void) disconnect {
+    [self goOffline];
+    [_xmppStream disconnect];
+}
+
+- (void) teardownStream {
+    [_xmppStream removeDelegate:self];
+    [xmppReconnect deactivate];
+    
+    [_xmppStream disconnect];
+    _xmppStream = nil;
+    xmppReconnect = nil;
+}
+
+/**
+ *  初始化xmpp stream对象
+ */
+- (void) setupStream {
+    _xmppStream = [[XMPPStream alloc] init];
+    _xmppStream.hostName = XMPP_IP;
+    _xmppStream.hostPort = XMPP_PORT;
+    [_xmppStream addDelegate:self delegateQueue:dispatch_get_main_queue()];
+    
+    //app在后台运行时保持socket连接
+    _xmppStream.enableBackgroundingOnSocket = YES;
+    
+    //xmpp因意外断开处理可由xmppReconnect处理
+    xmppReconnect = [[XMPPReconnect alloc] init];
+    [xmppReconnect activate:_xmppStream];
+    
+}
+
+/**
+ *  向xmpp服务器发送下线消息
+ */
+- (void) goOffline {
+    XMPPPresence *presence = [XMPPPresence presenceWithType:@"unavailable"];
+    [_xmppStream sendElement:presence];
+}
+
+/**
+ *  向xmpp服务器发送上线消息
+ */
+- (void) goOnline {
+    XMPPPresence *presence = [XMPPPresence presence];
+    [_xmppStream sendElement:presence];
+}
+
+#pragma mark - xmpp delegate
+
+/**
+ *  客户端与xmpp服务器连接成功后的回调函数
+ *
+ *  @param sender
+ */
+- (void) xmppStreamDidConnect:(XMPPStream *)sender {
+    isOpen = YES;
+    
+    NSError *err;
+    [_xmppStream authenticateWithPassword:password error:&err];
+}
+
+/**
+ *  客户端与服务器端验证证书成功后的回调函数
+ *
+ *  @param sender
+ */
+- (void) xmppStreamDidAuthenticate:(XMPPStream *)sender {
+    [self goOnline];
+}
+
+/**
+ *  客户端收到消息的回调函数
+ *
+ *  @param sender
+ *  @param message
+ */
+- (void) xmppStream:(XMPPStream *)sender didReceiveMessage:(XMPPMessage *)message {
+    NSString *msg = [message body];
+    NSString *from = [[message from] user];
+    
+    if(!msg) {
+        return;
+    }
+    
+    NSMutableDictionary *m = [[NSMutableDictionary alloc] init];
+    [m setObject:msg forKey:@"msg"];
+    if(from){
+        [m setObject:from forKey:@"sender"];
+    }
+    
+    //显示本地通知
+    UILocalNotification *notification = [[UILocalNotification alloc] init];
+    notification.alertBody = msg;
+    notification.alertAction = @"滑动关闭";
+    notification.soundName = UILocalNotificationDefaultSoundName;
+    [[UIApplication sharedApplication] presentLocalNotificationNow:notification];
+    
+    //应用图标显示小红点
+    NSInteger badgeNum = [AppConfigure integerForKey:APP_ICON_BADGE_NUM];
+    badgeNum++;
+    [AppConfigure setInteger:badgeNum forKey:APP_ICON_BADGE_NUM];
+    [UIApplication sharedApplication].applicationIconBadgeNumber = badgeNum;
+    
+    //待办tab红点更新
+    if(_badgeNumDelegate) {
+        [_badgeNumDelegate addOneBadge];
+    }
+}
+
+//好友状态变化时，触发的回调函数
+- (void) xmppStream:(XMPPStream *)sender didReceivePresence:(XMPPPresence *)presence {
+    NSString *presenceType = [presence type];
+    NSString *myUsername = [[sender myJID] user];
+    NSString *presenceFromUser = [[presence from] user];
+    NSString *status = [presence status];
+}
+
+/**
+ *  系统收到本地消息的回调函数
+ *
+ *  @param application
+ *  @param notification
+ */
+- (void)application:(UIApplication *)application didReceiveLocalNotification:(UILocalNotification *)notification {
+    UIApplicationState state = [application applicationState];
+    //当app运行至前台时，无法显示弹出屏幕顶部方式的本地消息，只能已弹出框的形式显示
+    if(state == UIApplicationStateActive) {
+        
+    }
+}
+
+/**
+ *  用户之间发送消息
+ */
+- (void) sendMessage {
+    NSString *msg = @"hi";
+    //构建xmpp消息
+    NSXMLElement *body = [NSXMLElement elementWithName:@"body"];
+    [body setStringValue:msg];
+    NSXMLElement *message = [NSXMLElement elementWithName:@"message"];
+    [message addAttributeWithName:@"type" stringValue:@"chat"];
+    //发送给super节点
+    NSString *superJID = [BaseFunction makeJabberdID:@"super"];
+    [message addAttributeWithName:@"to" stringValue:superJID];
+    [message addChild:body];
+    [[self xmppStream] sendElement:message];
+}
+
+/**
+ *  检查本地是否有错误日志，如果有错误日志，则进行上传，上传成功后删除本地错误日志文件
+ */
+- (void) checkErrLog {
+    NSFileManager *manager = [NSFileManager defaultManager];
+    NSString *errFolderPath = [BaseFunction getErrorLogFolderPath];
+    NSError *error = nil;
+    NSArray *fileList = [[NSArray alloc] init];
+    //fileList便是包含有该文件夹下所有文件的文件名及文件夹名的数组
+    fileList = [manager contentsOfDirectoryAtPath:errFolderPath error:&error];
+    if(!error) {
+        if([fileList count] > 0) {
+            NSString *logName = [fileList objectAtIndex:0];
+            NSString *logFilePath = [errFolderPath stringByAppendingPathComponent:logName];
+            //上传日志
+            NSURL *url = [NSURL URLWithString:LOGUPLOAD];
+            BaseFormDataRequest *request = [[BaseFormDataRequest alloc] initWithURL:url];
+            [request setPostValue:@"TRUE" forKey:@"IS_LOG"];
+            [request setFile:logFilePath forKey:@"file1"];
+            [request startAsynchronous];
+            __weak BaseFormDataRequest *weakRequest = request;
+            [request setCompletionBlock:^{
+                NSString *result = [weakRequest responseString];
+                if([@"success" isEqualToString:result]) {
+                    [manager removeItemAtPath:logFilePath error:nil];
+                }
+            }];
+            [request setFailedBlock:^{
+            }];
+        }
+    }
+}
+
+@end

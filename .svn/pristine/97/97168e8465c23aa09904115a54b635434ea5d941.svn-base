@@ -1,0 +1,308 @@
+//
+//  ContentManager.m
+//  hxqm_mobile
+//
+//  Created by 刘志 on 15/1/14.
+//  Copyright (c) 2015年 huaxin. All rights reserved.
+//
+
+#import "ContentManager.h"
+
+@implementation ContentManager
+
+- (id) init {
+    self = [super init];
+    if(self) {
+        
+    }
+    return self;
+}
+
+- (NSDictionary *) getContentDetialInfo:(NSString *)boContentId userid:(NSString *)userid {
+    NSString *sql = @"SELECT * FROM BO_CONTENT WHERE BO_CONTENT_ID = ? AND USERID = ?";
+    NSArray *params = @[boContentId,userid];
+    return [self getMapBySql:sql params:params];
+}
+
+- (BOOL) saveDownloadContents:(NSArray *)downloadContentsList userid:(NSString *)userid {
+    BOOL result = YES;
+    for(NSInteger i = 0 ; i < downloadContentsList.count ; i++) {
+        BOOL isExist = [self getContentExistState:downloadContentsList[i] userid:userid];
+        NSLog(@"isExist = %@", isExist ? @"YES" : @"NO");
+        if(isExist) {
+            result = [self updateContent:downloadContentsList[i] userid:userid] && result;
+            NSLog(@"更新%@", result ? @"成功" : @"失败");
+        } else {
+            result = [self saveDownloadContent:downloadContentsList[i] userid:userid] && result;
+            NSLog(@"保存%@", result ? @"成功" : @"失败");
+        }
+    }
+    return result;
+}
+
+- (BOOL) getContentExistState:(NSDictionary *)jsonObject userid:(NSString *)userid{
+    NSString *sql = @"SELECT 1 FROM BO_CONTENT T WHERE BO_CONTENT_ID = ? AND USERID = ?";
+    NSArray *params = @[[jsonObject objectForKey:@"BO_CONTENT_ID"],userid];
+    NSArray *array = [self getListBySql:sql params:params];
+    if(array.count > 0) {
+        return YES;
+    }
+    return NO;
+}
+
+- (BOOL) updateContent:(NSDictionary *) jso userid :(NSString *)userid {
+    NSString *sql = @"UPDATE BO_CONTENT SET BO_TOTAL_NUM = ?,BO_CURRENT_NUM = ?,CONTENT_TYPE=?,BO_PROBLEM_ID=? WHERE BO_CONTENT_ID = ? AND USERID = ?";
+    NSArray *params = @[[jso objectForKey:@"BO_TOTAL_NUM"],
+                        [jso objectForKey:@"BO_CURRENT_NUM"],
+                        [jso objectForKey:@"CONTENT_TYPE"],
+                        [jso objectForKey:@"BO_PROBLEM_ID"],
+                        [jso objectForKey:@"BO_CONTENT_ID"],
+                        userid];
+    return [self executeSql:sql params:params];
+}
+
+- (BOOL) saveDownloadContent:(NSDictionary *)jso userid:(NSString *)userid{
+    NSArray *sqlArray = @[@"REPLACE INTO BO_CONTENT(                      ",
+                          @"BO_CONTENT_ID,                                ",
+                          @"BO_TEMPLATE_DETAIL_VER_ID,                    ",
+                          @"BO_SINGLE_PROJECT_ID,                         ",
+                          @"BO_PROJECT_SECTION_ID,                        ",
+                          @"BO_CONTENT_NAME,                              ",
+                          @"BO_TOTAL_NUM,                                 ",
+                          @"BO_CURRENT_NUM,                               ",
+                          @"CREATE_DATE,                                  ",
+                          @"IS_DOWNLOAD,                                  ",
+                          @"UPDATE_DATE,								  ",
+                          @"DOMAIN_ID,                                    ",
+                          @"USERID,                                       ",
+                          @"CONTENT_TYPE,                                 ",
+                          @"BO_CHECK_PROJECT_ID,                          ",
+                          @"OTHER_TYPE,                                   ",
+                          @"BO_PROBLEM_ID)                                ",
+                      @"VALUES(?,?,?,?,?,?,?,datetime(CURRENT_TIMESTAMP,'localtime'),'1',datetime(CURRENT_TIMESTAMP,'localtime'),?,?,?,?,'1',?)"];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for(NSString *apart in sqlArray) {
+        [sql appendString:apart];
+    }
+    NSArray *params = @[[jso objectForKey:@"BO_CONTENT_ID"],
+                        [jso objectForKey:@"BO_TEMPLATE_DETAIL_VER_ID"],
+                        [jso objectForKey:@"BO_SINGLE_PROJECT_ID"],
+                        [jso objectForKey:@"BO_PROJECT_SECTION_ID"],
+                        [jso objectForKey:@"BO_CONTENT_NAME"],
+                        [jso objectForKey:@"BO_TOTAL_NUM"],
+                        [jso objectForKey:@"BO_CURRENT_NUM"],
+                        [jso objectForKey:@"DOMAIN_ID"],
+                        userid,
+                        [jso objectForKey:@"CONTENT_TYPE"],
+                        [jso objectForKey:@"BO_CHECK_PROJECT_ID"],
+                        [jso objectForKey:@"BO_PROBLEM_ID"]];
+    return [self executeSql:sql params:params];
+}
+
+- (BOOL) insertContent:(NSString *)boContentId boContentName:(NSString *)boContentName boTemplateDetailVerId:(NSString *)boTemplateDetailVerId boSingleProjectId:(NSString *)boSingleProjectId boProjectSelectionId:(NSString *)boProjectSelectionId boTotalNum:(NSString *)boTotalNum boCurrentNum:(NSString *)boCurrentNum createDate:(NSString *)createDate updateDate:(NSString *)updateDate type:(NSString *)type boCheckProjectId:(NSString *)boCheckProjectId userid:(NSString *)userid {
+    NSArray *sqlArray = @[@"INSERT INTO BO_CONTENT(  BO_CONTENT_ID,                 ",
+                          @"                         BO_CONTENT_NAME,               ",
+                          @"                         BO_TEMPLATE_DETAIL_VER_ID,     ",
+                          @"                         BO_SINGLE_PROJECT_ID,         ",
+                          @"                         BO_PROJECT_SECTION_ID,         ",
+                          @"                         BO_TOTAL_NUM,                 ",
+                          @"                         BO_CURRENT_NUM,                ",
+                          @"                         CREATE_DATE,                   ",
+                          @"                         UPDATE_DATE,                   ",
+                          @"                         CONTENT_TYPE,                ",
+                          @"                         OTHER_TYPE,                    ",
+                          @"                         USERID,                        ",
+                          @"                         BO_CHECK_PROJECT_ID)           ",
+                          @"   VALUES(?,?,?,?,?,?,?,?,?,?,'1',?,?) "];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString * sqlApart in sqlArray) {
+        [sql appendString:sqlApart];
+    }
+    
+    NSArray *params = @[boContentId, boContentName, boTemplateDetailVerId, boSingleProjectId,
+                        boProjectSelectionId, boTotalNum, boCurrentNum, createDate, updateDate, type, userid,
+                        boCheckProjectId];
+    return [self executeSql:sql params:params];
+}
+
+/**
+ * 根据boContentId获得项目，模板，检查，整改信息
+ * @param boContentId
+ * @return map
+ * @author yanghua
+ */
+- (NSDictionary *)getFullInfoByBoContentId:(NSString *)boContentId userid:(NSString *)userid {
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    NSArray *sqlArray = @[@"SELECT P.BO_CONTENT_ID,                                                                 ",
+                          @"       P.BO_CONTENT_NAME,                                                               ",
+                          @"       P.BO_TEMPLATE_DETAIL_VER_ID,                                                     ",
+                          @"       P.BO_SINGLE_PROJECT_ID,                                                          ",
+                          @"       P.BO_PROJECT_SECTION_ID,                                                         ",
+                          @"       P.BO_TOTAL_NUM,                                                                  ",
+                          @"       P.BO_CURRENT_NUM,                                                                ",
+                          @"       P.CREATE_DATE,                                                                   ",
+                          @"       P.UPDATE_DATE,                                                                   ",
+                          @"       P.IS_DOWNLOAD,                                                                   ",
+                          @"       P.DOMAIN_ID,                                                                     ",
+                          @"       P.CONTENT_TYPE,                                                                  ",
+                          @"       P.OTHER_TYPE,                                                                    ",
+                          @"       P.BO_CHECK_PROJECT_ID,                                                           ",
+                          @"       V2.PROJECT_NAME,                                                                 ",
+                          @"       V2.MAJOR_ID,                                                                     ",
+                          @"       V3.CHECK_TYPE,                                                                   ",
+                          @"       R.BO_PROBLEM_ID,                                                                 ",
+                          @"       R.BO_PROBLEM_REPLY_ID,                                                           ",
+                          @"       R.STATUS                                                                         ",
+                          @"  FROM BO_CONTENT P                                                                     ",
+                          @"  LEFT JOIN (SELECT SP.BO_SINGLE_PROJECT_ID,SP.PROJECT_NAME,SP.MAJOR_ID                 ",
+                          @"               FROM BO_SINGLE_PROJECT SP WHERE SP.USERID =?) V2                         ",
+                          @"            ON P.BO_SINGLE_PROJECT_ID = V2.BO_SINGLE_PROJECT_ID                         ",
+                          @"  LEFT JOIN (SELECT CP.BO_CHECK_PROJECT_ID,CP.CHECK_TYPE                                ",
+                          @"               FROM BO_CHECK_PROJECT CP WHERE CP.USERID =?) V3                          ",
+                          @"            ON P.BO_CHECK_PROJECT_ID = V3.BO_CHECK_PROJECT_ID                           ",
+                          @"  LEFT JOIN (SELECT PR.BO_PROBLEM_ID,PR.BO_PROBLEM_REPLY_ID,PR.STATUS                   ",
+                          @"             FROM BO_PROBLEM_REPLY PR,BO_PROBLEM BP                                     ",
+                          @"             WHERE PR.BO_PROBLEM_ID = BP.BO_PROBLEM_ID  AND PR.USERID = BP.USERID       ",
+                          @"               AND BP.USERID = ?) R                                                     ",
+                          @"  ON P.BO_PROBLEM_ID = R.BO_PROBLEM_ID                                                  ",
+                          @"WHERE P.BO_CONTENT_ID = ?                                                               ",
+                          @" AND P.USERID = ?                                                                       "];
+    for (NSString * sqlApart in sqlArray) {
+        [sql appendString:sqlApart];
+    }
+    NSArray *params = @[userid, userid, userid, boContentId, userid];
+    
+    return [self getMapBySql:sql params:params];
+}
+
+- (BOOL)updateContentCompleteWithBoContentId:(NSString *)boContentId updateDate:(NSString *)updateDate currentNum:(NSString *)currentNum type:(NSString *)type userid:(NSString *)userid {
+    NSString *sql = @"UPDATE BO_CONTENT SET UPDATE_DATE = ?,BO_CURRENT_NUM = ? WHERE BO_CONTENT_ID = ? AND USERID = ? AND CONTENT_TYPE = ?";
+    
+    NSArray *params = [NSArray arrayWithObjects:updateDate, currentNum, boContentId, userid, type, nil];
+    
+    return [self executeSql:sql params:params];
+}
+
+- (NSString *)getBoContentIdAndTypeCountWithBoContentId:(NSString *)boContentId type:(NSString *)type userid:(NSString *)userid {
+    NSString *sql = @"SELECT COUNT(1) COUNTS FROM BO_CONTENT WHERE BO_CONTENT_ID = ? AND CONTENT_TYPE = ? AND USERID = ?";
+    return [self getStringBySql:sql params:@[boContentId, type, userid] key:@"COUNTS"];
+
+}
+
+/**
+ * 标识已完成抽查任务
+ *
+ * @param boContentId
+ * @author yanghua
+ */
+- (void)doCompleteTaskWithBoContentId:(NSString *)boContentId userid:(NSString *)userid {
+    NSString *sql = @"UPDATE BO_CONTENT SET BO_TOTAL_NUM = -1 WHERE BO_CONTENT_ID = ? AND USERID = ?";
+    [self executeSql:sql params:@[boContentId, userid]];
+}
+
+/**
+ * 根据项目,分段,模板获取巡检控制点ID
+ *
+ * @param jsonObject
+ * @return
+ * @author hubo
+ */
+- (NSMutableArray *)getContentIdByOths:(NSDictionary *)jso userid:(NSString *)userid {
+    NSArray *sqlArray = @[@"SELECT BO_CONTENT_ID FROM  BO_CONTENT                                   ",
+                          @" WHERE USERID = ? AND BO_SINGLE_PROJECT_ID = ?                          ",
+                          @" AND CONTENT_TYPE = ? AND BO_PROJECT_SECTION_ID = ?                     ",
+                          @" AND BO_TEMPLATE_DETAIL_VER_ID = ?                                      "];
+    NSMutableString *sql = [[NSMutableString alloc] init];
+    for (NSString *s in sqlArray) {
+        [sql appendString:s];
+    }
+    NSArray *params = @[userid,
+                        [jso objectForKey:@"BO_SINGLE_PROJECT_ID"],
+                        [jso objectForKey:@"CONTENT_TYPE"],
+                        [jso objectForKey:@"BO_PROJECT_SECTION_ID"],
+                        [jso objectForKey:@"BO_TEMPLATE_DETAIL_VER_ID"]];
+    return [self getListBySql:sql params:params];
+}
+
+/**
+ * 更新控制点ID
+ *
+ * @param oldContentId
+ * @param newContentId
+ * @return
+ * @author hubo
+ */
+- (BOOL)updateContentWithOldContentId:(NSString *)oldContentId newContentId:(NSString *)newContentId {
+    NSString *sql = @"UPDATE BO_CONTENT SET BO_CONTENT_ID = ? WHERE BO_CONTENT_ID=?";
+    return [self executeSql:sql params:@[newContentId, oldContentId]];
+}
+
+/**
+ * 获得临时contentid
+ *
+ * @param templateId
+ * @param boSingleProjectId
+ * @return true or false
+ * @author yanghua
+ */
+- (NSString *)getTempContentIdWithTemplateId:(NSString *)templateId boSingleProjectId:(NSString *)boSingleProjectId userid:(NSString *)userid {
+    NSString *sql = @"SELECT * FROM BO_CONTENT WHERE BO_TEMPLATE_DETAIL_VER_ID = ? AND BO_SINGLE_PROJECT_ID = ? AND CONTENT_TYPE = ? AND OTHER_TYPE IS NULL AND USERID = ?";
+    NSDictionary *dict = [self getMapBySql:sql params:@[templateId, boSingleProjectId, @"-1", userid]];
+    if (dict != nil) {
+        return [dict objectForKey:@"bo_content_id"];
+    }
+    
+    return @"";
+}
+
+/**
+ * 更新content内容
+ *
+ * @param boContentId
+ * @param contentType
+ * @return true or false
+ * @author yanghua
+ */
+- (BOOL)updateContentInfo:(NSDictionary *)jsonObject userid:(NSString *)userid {
+    NSString *boContentId = [jsonObject objectForKey:@"BO_CONTENT_ID"];
+    NSString *boProblemId = [jsonObject objectForKey:@"BO_PROBLEM_ID"];
+    NSString *sql = @"UPDATE BO_CONTENT SET OTHER_TYPE = ?,BO_PROBLEM_ID = ? WHERE BO_CONTENT_ID = ? AND USERID = ?";
+    return [self executeSql:sql params:@[@"10", boProblemId, boContentId, userid]];
+}
+
+/**
+ * 标识已完成抽查任务
+ *
+ * @param boCheckProjectId
+ * @author yanghua
+ */
+- (BOOL)doFinishAllTaskWithBoCheckProjectId:(NSString *)boCheckProjectId {
+    NSString *sql = @"UPDATE BO_CONTENT  SET BO_TOTAL_NUM = -1 WHERE BO_CHECK_PROJECT_ID = ? AND CONTENT_TYPE = '2' AND BO_TOTAL_NUM = 0";
+    return [self executeSql:sql params:@[boCheckProjectId]];
+}
+
+/**
+ * 得到项目下的检查任务
+ *
+ * @param boSingleProjectId
+ * @return list
+ * @author yanghua
+ */
+- (NSMutableArray *)getCheckTaskListWithBoSingleProjectId:(NSString *)boSingleProjectId {
+    NSString *sql = @"SELECT * FROM BO_CONTENT T LEFT JOIN BO_CHECK_PROJECT P ON T.BO_CHECK_PROJECT_ID = P.BO_CHECK_PROJECT_ID WHERE T.BO_SINGLE_PROJECT_ID = ? AND T.CONTENT_TYPE = '2' AND T.BO_TOTAL_NUM = 0 AND P.CHECK_STATE = '2'";
+    return [self getListBySql:sql params:@[boSingleProjectId]];
+}
+
+/**
+ * 删除草稿或完成检查后修改草稿状态
+ *
+ * @param boContentId
+ * @return true or false
+ * @author yanghua
+ */
+- (BOOL)updateOtherTypeStateWithBoContentId:(NSString *)boContentId userid:(NSString *)userid {
+    NSString *sql = @"UPDATE BO_CONTENT SET OTHER_TYPE = 1 WHERE BO_CONTENT_ID = ? AND USERID = ?";
+    return [self executeSql:sql params:@[boContentId, userid]];
+}
+
+@end
