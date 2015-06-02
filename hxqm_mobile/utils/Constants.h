@@ -9,8 +9,8 @@
 #ifndef hxqm_mobile_Constants_h
 #define hxqm_mobile_Constants_h
 
-#define BASE_URL @"http://115.29.3.106:8080"
-//#define BASE_URL @"http://192.168.0.52:8088"
+//#define BASE_URL @"http://115.29.3.106:8080"
+#define BASE_URL @"http://192.168.0.52:8088"
 
 #define UPDATE_IPA_URL @"itms-services://?action=download-manifest&url=https://www.telsoft.cn:8443/projectweb/ios/hztt_528088.plist"
 
